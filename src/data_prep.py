@@ -1,16 +1,6 @@
 import pandas as pd
 import logging
-import datetime
-
-
-def get_datetime(date: int):
-    """Converts integer input to datetime64[ns] output."""
-    date_string = str(date)
-    year = int(date_string[:4])
-    month = int(date_string[4:6])
-    day = int(date_string[6:8])
-    new_date = datetime.date(year, month, day)
-    return pd.to_datetime(new_date)
+import numpy as np
 
 
 def wind_direction_converter(degrees: int):
@@ -139,11 +129,6 @@ class WeatherPrep:
 
     def clean_data(self):
         self.data = self.data.rename(columns=lambda x: x.strip())
-        # This is the weather station ID. I'm only using the data from one station
-        # (Gilze-Rijen) so this column does not contain relevant information.
-        # self.data = self.data.drop(columns="# STN")
-        # relevant_cols = ["YYYYMMDD", "DDVEC","FHVEC","FG","FHX","FHNTG", "TN",
-        # "TX","RH","PG","PX","PN","UG", "UX", "UN",]
 
         new_col_names = {
             "YYYYMMDD": "date",
@@ -172,10 +157,8 @@ class WeatherPrep:
 
         logging.debug("Checking datatypes...")
         for col in self.data.columns:
-            if self.data[col].dtype == object:
-                raise TypeError(
-                    f"Column {col} of type 'object'. Please inspect your dataset."
-                )
+            self.data[col] = pd.to_numeric(self.data[col], errors="raise")
+
         logging.debug("All datatypes are valid.")
 
         self.data = self.data.rename(columns=new_col_names)
@@ -185,9 +168,11 @@ class WeatherPrep:
                 f"Found {self.data.isna().sum().sum()} missing values, expected 0. Please inspect your dataset."
             )
 
+        self.data["date"] = pd.to_datetime(self.data["date"], format="%Y%m%d")
+
         logging.info(f"Data cleaning completed. Shape is {self.data.shape}")
 
-    def feature_engineering(self, window_length: list):
+    def feature_engineering(self, window_length: list[int]):
 
         # Update scales
         wrong_scale = [
@@ -208,7 +193,7 @@ class WeatherPrep:
         # Create a new column to weigh how close the mean vector wind speed is to the
         # overall daily wind speed.
         self.data["windVectorWeight"] = round(
-            self.data["windVectorAvgSpeed"] / self.data["windDailyAvgSpeed"], 3
+            self.data["windVectorAvgSpeed"] / self.data["windDailyAvgSpeed"].replace(0, np.nan), 3
         )
 
         # Use custom function to convert information from a wind vector in degrees
@@ -217,7 +202,7 @@ class WeatherPrep:
         self.data[["north", "east", "south", "west"]] = pd.DataFrame(
             self.data["windVectorDirection"]
             .apply(wind_direction_converter)
-            .apply(pd.Series)
+            .tolist()
         )
 
         # Adjusts the values using windVectorWeight
@@ -258,7 +243,7 @@ class WeatherPrep:
         logging.debug("Created rolling window features.")
 
         # Remove the year 2010 and reset index.
-        self.data = self.data[365:].reset_index(drop=True)
+        self.data = self.data[self.data["date"] >= "2011-01-01"].reset_index(drop=True)
 
         logging.debug(f"The dataset has the following columns {self.data.columns}.")
         logging.info(f"Feature engineering completed. Shape is {self.data.shape}.")
@@ -270,3 +255,4 @@ if __name__ == "__main__":
     )
     p.clean_data()
     p.feature_engineering(window_length=[3, 7])
+    
