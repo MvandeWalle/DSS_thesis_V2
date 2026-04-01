@@ -2,6 +2,8 @@ import pandas as pd
 import logging
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 def wind_direction_converter(degrees: int):
     """Converts vector to proportions in every wind direction.
@@ -52,7 +54,7 @@ def wind_direction_converter(degrees: int):
 
 def rolling_windows(
     data: pd.DataFrame, method: str, columns: list[str], length: list[int], decimal: int
-    ):
+):
     """Creates summary statistics over sliding windows.
 
     Parameters
@@ -97,6 +99,17 @@ def rolling_windows(
     return data
 
 
+class BasePrep:
+    def __init__(self, data_path: str):
+        self.data = pd.read_csv(data_path)
+
+    def clean_data(self):
+        raise NotImplementedError
+
+    def write_file(self):
+        raise NotImplementedError
+
+
 class WeatherPrep:
     """This class prepares the weather data"""
 
@@ -113,23 +126,25 @@ class WeatherPrep:
 
         New attributes
         --------------
-        data : dataset is loaded into the class attributes.
+        data : weather dataset is loaded into the class attributes.
         """
 
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
-        logging.info("A long time ago in a galaxy far, far away....")
-        logging.info("The process of data preparation was started.")
+        logger.debug("The process of data preparation was started.")
 
         self.data = pd.read_csv(
             filepath_or_buffer=data_path, sep=separator, skiprows=skip_rows
         )
-        logging.info(
-            f"New instance of a class is constructed, shape is {self.data.shape}."
-        )
+        logger.info(f"WeatherPrep is constructed, data shape is {self.data.shape}.")
 
     def clean_data(self):
+        # Removing trailing space in column names.
         self.data = self.data.rename(columns=lambda x: x.strip())
 
+        # If there's only one weather station, this column can be dropped.
+        if self.data["# STN"].nunique() == 1:
+            self.data = self.data.drop("# STN", axis=1)
+
+        # Changing column names for clarity.
         new_col_names = {
             "YYYYMMDD": "date",
             "DDVEC": "windVectorDirection",
@@ -149,28 +164,36 @@ class WeatherPrep:
             "UN": "humidDailyMin",
         }
 
-        logging.debug("Checking features...")
+        # Checking if all necessary features are in the dataset
+        logger.debug("Checking features...")
         for k in new_col_names.keys():
             if k not in self.data.columns:
                 raise NameError(f"Column {k} not found in the data.")
-        logging.debug("All necessary features are in the dataset.")
+        logger.debug("All necessary features are in the dataset.")
 
-        logging.debug("Checking datatypes...")
+        # Checking if all column are numeric, if not, try to convert them.
+        logger.debug("Checking datatypes...")
         for col in self.data.columns:
             self.data[col] = pd.to_numeric(self.data[col], errors="raise")
 
-        logging.debug("All datatypes are valid.")
+        logger.debug("All datatypes are valid.")
 
+        # Rename the columns
         self.data = self.data.rename(columns=new_col_names)
 
+        # Change date format
+        self.data["date"] = pd.to_datetime(self.data["date"], format="%Y%m%d")
+
+        # Check for missing values.
         if self.data.isna().sum().sum() != 0:
             raise ValueError(
                 f"Found {self.data.isna().sum().sum()} missing values, expected 0. Please inspect your dataset."
             )
 
+        # Change the date format to datetime64
         self.data["date"] = pd.to_datetime(self.data["date"], format="%Y%m%d")
 
-        logging.info(f"Data cleaning completed. Shape is {self.data.shape}")
+        logger.debug(f"WeatherPrep: data is cleaned. Shape is {self.data.shape}")
 
     def feature_engineering(self, window_length: list[int]):
 
@@ -188,30 +211,31 @@ class WeatherPrep:
 
         self.data[wrong_scale] = self.data[wrong_scale] / 10
 
-        logging.debug("Updated scales.")
+        logger.debug("Updated scales.")
 
         # Create a new column to weigh how close the mean vector wind speed is to the
         # overall daily wind speed.
         self.data["windVectorWeight"] = round(
-            self.data["windVectorAvgSpeed"] / self.data["windDailyAvgSpeed"].replace(0, np.nan), 3
+            self.data["windVectorAvgSpeed"]
+            / self.data["windDailyAvgSpeed"].replace(0, np.nan),
+            3,
         )
 
         # Use custom function to convert information from a wind vector in degrees
         # (0 to 360) to proportions in every wind direction: North, East, South,
         # and West.
         self.data[["north", "east", "south", "west"]] = pd.DataFrame(
-            self.data["windVectorDirection"]
-            .apply(wind_direction_converter)
-            .tolist()
+            self.data["windVectorDirection"].apply(wind_direction_converter).tolist()
         )
 
         # Adjusts the values using windVectorWeight
         for col in self.data[["north", "east", "south", "west"]]:
             self.data[col] = round(self.data[col] * self.data["windVectorWeight"], 3)
 
+        # The original column can now be dropped.
         self.data = self.data.drop(columns="windVectorDirection")
 
-        logging.debug("Converted wind vector to proportions.")
+        logger.debug("Converted wind vector to proportions.")
 
         # Rolling windows for temperature (mean)
         self.data = rolling_windows(
@@ -240,19 +264,285 @@ class WeatherPrep:
             columns=["precipDailySum"],
         )
 
-        logging.debug("Created rolling window features.")
+        logger.debug("Created rolling window features.")
 
         # Remove the year 2010 and reset index.
         self.data = self.data[self.data["date"] >= "2011-01-01"].reset_index(drop=True)
 
-        logging.debug(f"The dataset has the following columns {self.data.columns}.")
-        logging.info(f"Feature engineering completed. Shape is {self.data.shape}.")
+        logger.debug(
+            f"WeatherPrep: The dataset has the following columns {self.data.columns}."
+        )
+        logger.debug(
+            f"WeatherPrep: feature engineering completed. Shape is {self.data.shape}."
+        )
+
+        return self.data
+
+    def write_file(self, folder: str):
+        datapath = f"{folder}/weather_data_processed.csv"
+        self.data.to_csv(datapath, sep=",")
+        logger.info(
+            f"WeatherPrep: file saved at {datapath} with shape {self.data.shape}."
+        )
+
+
+class WildfirePrep:
+    """This class prepares the wildfire data"""
+
+    def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
+        """Initialise class, configure logger and load the data.
+
+        Parameters
+        ----------
+        data_path : path to the dataset (.csv or .txt).
+
+        separator : choose the separator in the dataset (comma or semicolon). Default is ','.
+
+        skip_rows : if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
+
+        New attributes
+        --------------
+        data : wildfire dataset is loaded into the class attributes.
+        """
+
+        logger.debug("The process of data preparation was started.")
+
+        self.data = pd.read_csv(
+            filepath_or_buffer=data_path, sep=separator, skiprows=skip_rows
+        )
+        logger.info(f"WildfirePrep is constructed, data shape is {self.data.shape}.")
+
+    def clean_data(self):
+        logger.debug("Wildfire data cleaning initiated.")
+
+        # Change date format, sort values and filter for 2011-2025
+        self.data = self.data.rename(columns={"#DateId": "date"})
+        self.data["date"] = pd.to_datetime(self.data["date"], format="%Y%m%d")
+        self.data = self.data.sort_values("date").reset_index(drop=True)
+        self.data = self.data[
+            (self.data["date"].dt.year >= 2011) & (self.data["date"].dt.year <= 2025)
+        ]
+
+        logger.debug(f"WildfirePrep: data is cleaned. Shape is {self.data.shape}")
+
+    def feature_engineering(self):
+        wildfire_dates = self.numeric_wf_data = (
+            self.data.value_counts("date").sort_index().reset_index()
+        )
+        # Create the binary-coded wildfire dataset
+        self.binary_wf_data = wildfire_dates.copy()
+        self.binary_wf_data["count"] = True
+
+        self.numeric_wf_data = wildfire_dates.copy()
+
+        logger.debug(
+            f"WildfirePrep: Binary wildfire dataset is created. There are {self.binary_wf_data.nunique()} unique value(s) and the shape is {self.binary_wf_data.shape}."
+        )
+        logger.debug(
+            f"WildfirePrep: Numeric wildfire dataset is created. There are {self.numeric_wf_data.nunique()} value(s) and the shape is {self.numeric_wf_data.shape}."
+        )
+
+    def write_file(self, folder: str):
+        b_datapath = f"{folder}/binary_wf.csv"
+        n_datapath = f"{folder}/numeric_wf.csv"
+        self.binary_wf_data.to_csv(b_datapath, sep=",")
+        logger.info(
+            f"WildfirePrep: file saved at {b_datapath} with shape {self.binary_wf_data.shape}."
+        )
+        self.numeric_wf_data.to_csv(n_datapath, sep=",")
+        logger.info(
+            f"WildfirePrep: file saved at {n_datapath} with shape {self.numeric_wf_data.shape}."
+        )
+
+
+class CalendarPrep(BasePrep):
+    """This class prepares the calendar data"""
+
+    def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
+        """Initialise class, configure logger and load the data.
+
+        Parameters
+        ----------
+        data_path : path to the dataset (.csv or .txt).
+
+        separator : choose the separator in the dataset (comma or semicolon). Default is ','.
+
+        skip_rows : if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
+
+        New attributes
+        --------------
+        data : calendar dataset is loaded into the class attributes.
+        """
+
+        logger.debug("The process of data preparation was started.")
+
+        self.data = pd.read_csv(
+            filepath_or_buffer=data_path, sep=separator, skiprows=skip_rows
+        )
+
+        logger.info(f"CalendarPrep is constructed, data shape is {self.data.shape}.")
+
+    def clean_data(self):
+        logger.debug("CalendarPrep: data cleaning initiated")
+
+        self.data["date"] = pd.to_datetime(self.data["date"], format="%d-%m-%Y")
+
+        # Dropping irrelevant and categorical columns
+        self.data = self.data.drop(
+            columns=[
+                "#DateId",
+                "dagvhJaar",
+                "NaamVakNoord",
+                "NaamVakMidden",
+                "NaamVakZuid",
+                "NaamVakBE",
+                "NaamVakDE",
+                "feestdagenVakantie_BE",
+                "feestdagenVakantie_DE",
+                "dagvdWeekOmschr",
+                "feestdagNaam",
+                "_catDagsoort",
+            ]
+        )
+
+        # Rename the columns
+        new_col_names = {
+            "_isFeestdagNL": "holiday_NL",
+            "_isWerkdag": "workday",
+            "VakantieNoord": "vacation_NL_North",
+            "VakantieMidden": "vacation_NL_Central",
+            "VakantieZuid": "vacation_NL_South",
+            "VakantieVlaanderen": "vacation_BE",
+            "VakantieNordrheinWF": "vacation_GE",
+        }
+
+        self.data = self.data.rename(columns=new_col_names)
+
+        # I need to convert every column (except date) to Boolean, so it's saved properly when converting to CSV
+        cols_to_bool = [
+            "holiday_NL",
+            "workday",
+            "vacation_NL_North",
+            "vacation_NL_Central",
+            "vacation_NL_South",
+            "vacation_BE",
+            "vacation_GE",
+        ]
+
+        # First filling the NaN with 0 and then converting to integer to make sure that conversion to Boolean goes properly.
+        self.data[cols_to_bool] = self.data[cols_to_bool].fillna(0).astype("int")
+        self.data[cols_to_bool] = self.data[cols_to_bool].astype("bool")
+        logger.debug(f"CalendarPrep: data is cleaned. Shape is {self.data.shape}.")
+
+    def write_file(self, folder: str):
+        datapath = f"{folder}/calendar_data_processed.csv"
+        self.data.to_csv(datapath, sep=",")
+        logger.info(
+            f"CalendarPrep: file saved at {datapath} with shape {self.data.shape}."
+        )
+
+
+def DataMerger(
+    weather_path: str,
+    calendar_path: str,
+    wildfire_path: str,
+    wf_type: str,
+    output_folder: str,
+):
+    #
+    allowed_types = ["binary", "numeric"]
+    if wf_type not in allowed_types:
+        raise ValueError(f"Method must be '{allowed_types}', got '{wf_type}' instead.")
+
+    # Load the files
+    weather = pd.read_csv(weather_path, index_col=0)
+    calendar = pd.read_csv(calendar_path, index_col=0)
+    wildfire = pd.read_csv(wildfire_path, index_col=0)
+
+    for name, df in {
+        "weather": weather,
+        "calendar": calendar,
+        "wildfire": wildfire,
+    }.items():
+        if "date" not in df.columns:
+            raise KeyError(f"{name} dataset missing 'date' column.")
+        if df["date"].duplicated().any():
+            raise ValueError(f"{name} dataset contains duplicate dates.")
+
+    # Merge the weather and calendar datasets
+    if weather.shape[0] != calendar.shape[0]:
+        raise ValueError(
+            f"Weather and calendar datasets do not have the same length: {weather.shape[0]} vs {calendar.shape[0]}."
+        )
+    logger.debug(f"Shape: weather ({weather.shape}) vs calendar ({calendar.shape}).")
+    dataset = weather.merge(calendar, how="inner", on="date")
+
+    if dataset.empty:
+        raise ValueError("Merge resulted in empty dataset. Check date alignment.")
+
+    wildfire = wildfire.rename(columns={"count": "wildfire"})
+    dataset = dataset.merge(wildfire, how="left", on="date")
+
+    if wf_type == "binary":
+        binary_dataset = dataset.copy()
+        binary_dataset["wildfire"] = (
+            binary_dataset["wildfire"].fillna(False).astype(bool)
+        )
+        path = f"{output_folder}/binary_dataset.csv"
+        binary_dataset.to_csv(path, sep=",")
+        logger.info(
+            f"Merger: binary dataset saved at {path} with shape {binary_dataset.shape}."
+        )
+
+    elif wf_type == "numeric":
+        numeric_dataset = dataset.copy()
+        numeric_dataset["wildfire"] = numeric_dataset["wildfire"].fillna(0).astype(int)
+        path = f"{output_folder}/numeric_dataset.csv"
+        numeric_dataset.to_csv(path, sep=",")
+        logger.info(
+            f"Merger: numeric dataset saved at {path} with shape {numeric_dataset.shape}."
+        )
+
+    return
 
 
 if __name__ == "__main__":
-    p = WeatherPrep(
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    a = WeatherPrep(
         data_path="data/raw/weather_data_original.txt", separator=",", skip_rows=22
     )
-    p.clean_data()
-    p.feature_engineering(window_length=[3, 7])
+    a.clean_data()
+    a.feature_engineering(window_length=[3, 7])
+    a.write_file(folder="data/processed")
+
+    b = WildfirePrep(data_path="data/raw/wildfire_data.csv", separator=";", skip_rows=0)
+    b.clean_data()
+    b.feature_engineering()
+    b.write_file(folder="data/processed")
+
+    c = CalendarPrep(
+        data_path="data/raw/calendar_features.csv", separator=";", skip_rows=0
+    )
+    c.clean_data()
+    c.write_file(folder="data/processed")
+
+
+if __name__ == "__main__":
+    DataMerger(
+        weather_path="data/processed/weather_data_processed.csv",
+        calendar_path="data/processed/calendar_data_processed.csv",
+        wildfire_path="data/processed/binary_wf.csv",
+        wf_type="binary",
+        output_folder="data/processed",
+    )
     
+    DataMerger(
+        weather_path="data/processed/weather_data_processed.csv",
+        calendar_path="data/processed/calendar_data_processed.csv",
+        wildfire_path="data/processed/numeric_wf.csv",
+        wf_type="numeric",
+        output_folder="data/processed",
+    )
