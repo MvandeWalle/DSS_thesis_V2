@@ -180,3 +180,7 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 test.py
+.DSS-venv/bin/python
+.DSS-venv/bin/python3
+.DSS-venv/pyvenv.cfg
+.DSS-venv/bin/python3.12
