@@ -471,36 +471,80 @@ def DataMerger(
 
     # Merge the weather and calendar datasets
     if weather.shape[0] != calendar.shape[0]:
-        raise ValueError(
-            f"Weather and calendar datasets do not have the same length: {weather.shape[0]} vs {calendar.shape[0]}."
+        logger.warning(
+            f"Weather and calendar datasets do not have the same length: {weather.shape[0]} vs {calendar.shape[0]}. A left join will be performed instead of a inner join. Please check the dataset."
         )
-    logger.debug(f"Shape: weather ({weather.shape}) vs calendar ({calendar.shape}).")
-    dataset = weather.merge(calendar, how="inner", on="date")
+        dataset = weather.merge(calendar, how="left", on="date")
+
+    else:
+        logger.debug(
+            f"Shape: weather ({weather.shape}) vs calendar ({calendar.shape})."
+        )
+        dataset = weather.merge(calendar, how="inner", on="date")
 
     if dataset.empty:
         raise ValueError("Merge resulted in empty dataset. Check date alignment.")
 
     wildfire = wildfire.rename(columns={"count": "wildfire"})
     dataset = dataset.merge(wildfire, how="left", on="date")
+    logger.info(
+        f"Merger: the three datasets are merged and the current dataset has shape {dataset.shape}."
+    )
 
     if wf_type == "binary":
         binary_dataset = dataset.copy()
         binary_dataset["wildfire"] = (
             binary_dataset["wildfire"].fillna(False).astype(bool)
         )
-        path = f"{output_folder}/binary_dataset.csv"
-        binary_dataset.to_csv(path, sep=",")
+
+        # For training and validating
+        binary_train = binary_dataset[
+            (binary_dataset["date"] >= "2011-01-01")
+            & (binary_dataset["date"] <= "2023-12-31")
+        ]
+
+        train_path = f"{output_folder}/train_binary_dataset.csv"
+        binary_train.to_csv(train_path, sep=",")
         logger.info(
-            f"Merger: binary dataset saved at {path} with shape {binary_dataset.shape}."
+            f"Merger: binary dataset saved at {train_path} with shape {binary_train.shape}."
+        )
+
+        # For out-of-sample testing
+        binary_test = binary_dataset[
+            (binary_dataset["date"] >= "2024-01-01")
+            & (binary_dataset["date"] <= "2025-12-31")
+        ]
+
+        test_path = f"{output_folder}/test_binary_dataset.csv"
+        binary_test.to_csv(test_path, sep=",")
+        logger.info(
+            f"Merger: binary dataset saved at {test_path} with shape {binary_test.shape}."
         )
 
     elif wf_type == "numeric":
         numeric_dataset = dataset.copy()
         numeric_dataset["wildfire"] = numeric_dataset["wildfire"].fillna(0).astype(int)
-        path = f"{output_folder}/numeric_dataset.csv"
-        numeric_dataset.to_csv(path, sep=",")
+
+        # For training and validating
+        numeric_train = numeric_dataset[
+            (numeric_dataset["date"] >= "2011-01-01")
+            & (numeric_dataset["date"] <= "2023-12-31")
+        ]
+        train_path = f"{output_folder}/train_numeric_dataset.csv"
+        numeric_train.to_csv(train_path, sep=",")
         logger.info(
-            f"Merger: numeric dataset saved at {path} with shape {numeric_dataset.shape}."
+            f"Merger: numeric dataset saved at {train_path} with shape {numeric_train.shape}."
+        )
+
+        # For out-of-sample testing
+        numeric_test = numeric_dataset[
+            (numeric_dataset["date"] >= "2024-01-01")
+            & (numeric_dataset["date"] <= "2025-12-31")
+        ]
+        test_path = f"{output_folder}/test_numeric_dataset.csv"
+        numeric_test.to_csv(test_path, sep=",")
+        logger.info(
+            f"Merger: numeric dataset saved at {test_path} with shape {numeric_test.shape}."
         )
 
     return
@@ -538,7 +582,7 @@ if __name__ == "__main__":
         wf_type="binary",
         output_folder="data/processed",
     )
-    
+
     DataMerger(
         weather_path="data/processed/weather_data_processed.csv",
         calendar_path="data/processed/calendar_data_processed.csv",
