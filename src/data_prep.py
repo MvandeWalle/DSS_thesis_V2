@@ -491,6 +491,10 @@ def DataMerger(
         f"Merger: the three datasets are merged and the current dataset has shape {dataset.shape}."
     )
 
+    # Add a year column for easier splitting later
+    dataset["date"] = pd.to_datetime(dataset["date"], format="%Y-%m-%d")
+    dataset["year"] = dataset["date"].dt.year
+
     if wf_type == "binary":
         binary_dataset = dataset.copy()
         binary_dataset["wildfire"] = (
