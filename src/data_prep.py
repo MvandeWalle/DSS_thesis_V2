@@ -487,7 +487,7 @@ def DataMerger(
 
     wildfire = wildfire.rename(columns={"count": "wildfire"})
     dataset = dataset.merge(wildfire, how="left", on="date")
-    logger.info(
+    logger.debug(
         f"Merger: the three datasets are merged and the current dataset has shape {dataset.shape}."
     )
 
