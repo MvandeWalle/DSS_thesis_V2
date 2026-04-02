@@ -4,5 +4,20 @@ from data_prep import (
     WeatherPrep,
     WildfirePrep,
     CalendarPrep,
+    DataMerger,
 )
 
+
+# Run dataprep
+
+# Load data
+
+# Split data
+
+# Train model
+
+# Predict
+
+# Evaluate
+
+# Log results
