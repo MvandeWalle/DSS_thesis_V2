@@ -184,3 +184,6 @@ test.py
 .DSS-venv/bin/python3
 .DSS-venv/pyvenv.cfg
 .DSS-venv/bin/python3.12
+
+# Folders
+data/processed
