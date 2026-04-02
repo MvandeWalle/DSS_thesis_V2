@@ -187,3 +187,8 @@ test.py
 
 # Folders
 data/processed
+data/processed/test_binary_dataset.csv
+data/processed/test_binary_dataset.csv
+data/processed/test_numeric_dataset.csv
+data/processed/train_binary_dataset.csv
+data/processed/train_numeric_dataset.csv
