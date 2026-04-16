@@ -110,7 +110,7 @@ class BasePrep:
         raise NotImplementedError
 
 
-class WeatherPrep:
+class WeatherPrep(BasePrep):
     """This class prepares the weather data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
@@ -196,6 +196,31 @@ class WeatherPrep:
         logger.debug(f"WeatherPrep: data is cleaned. Shape is {self.data.shape}")
 
     def feature_engineering(self, window_length: list[int]):
+        """Apply feature engineering to the cleaned weather dataset.
+
+        Scales raw KNMI variables to their correct units, computes a wind
+        vector weight, decomposes wind direction into cardinal proportions,
+        and adds rolling window summary statistics for temperature and
+        precipitation.
+
+        Parameters
+        ----------
+        window_length : list of int
+            Window sizes in days over which to compute rolling statistics.
+            For example, ``[3, 7, 28]`` creates 3-day, 7-day, and 28-day
+            rolling means and sums. Must be called after ``clean_data()``.
+
+        Returns
+        -------
+        None
+            Modifies ``self.data`` in place.
+
+        Examples
+        --------
+        >>> wp = WeatherPrep("weather.csv", separator=",", skip_rows=22)
+        >>> wp.clean_data()
+        >>> wp.feature_engineering(window_length=[3, 7, 28])
+        """
 
         # Update scales
         wrong_scale = [
@@ -286,7 +311,7 @@ class WeatherPrep:
         )
 
 
-class WildfirePrep:
+class WildfirePrep(BasePrep):
     """This class prepares the wildfire data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
@@ -449,7 +474,64 @@ def DataMerger(
     wf_type: str,
     output_folder: str,
 ):
-    #
+    """Merge processed weather, calendar, and wildfire datasets and save splits.
+
+    Loads the three processed datasets, validates their structure, and
+    merges them on the ``date`` column. The wildfire target column is
+    encoded as either binary (bool) or numeric (int) depending on
+    ``wf_type``. The merged dataset is then split chronologically into a
+    training set (2011–2023) and an out-of-sample test set (2024–2025),
+    both of which are written to CSV.
+
+    Note: the wildfire dataset may contain multiple fire records per day
+    by design, so duplicate date checks are not applied to it.
+
+    Parameters
+    ----------
+    weather_path : str
+        Path to the processed weather CSV file.
+    calendar_path : str
+        Path to the processed calendar CSV file.
+    wildfire_path : str
+        Path to the processed wildfire CSV file, expected to contain
+        a ``count`` column with the number of fires per day.
+    wf_type : str
+        Encoding for the wildfire target variable. Must be either
+        ``"binary"`` (any fire vs. no fire) or ``"numeric"``
+        (exact count of fires, 0–5).
+    output_folder : str
+        Directory where the output CSV files will be saved.
+
+    Returns
+    -------
+    None
+        Writes up to two CSV files to ``output_folder``:
+
+        - ``train_<wf_type>_dataset.csv`` — rows from 2011 to 2023.
+        - ``test_<wf_type>_dataset.csv``  — rows from 2024 to 2025.
+
+    Raises
+    ------
+    ValueError
+        If ``wf_type`` is not ``"binary"`` or ``"numeric"``.
+    KeyError
+        If any of the three datasets is missing a ``date`` column.
+    ValueError
+        If the weather or calendar datasets contain duplicate dates.
+    ValueError
+        If the weather–calendar merge results in an empty dataset.
+
+    Examples
+    --------
+    >>> DataMerger(
+    ...     weather_path="data/processed/weather_data_processed.csv",
+    ...     calendar_path="data/processed/calendar_data_processed.csv",
+    ...     wildfire_path="data/processed/binary_wf.csv",
+    ...     wf_type="binary",
+    ...     output_folder="data/processed",
+    ... )
+    """
+
     allowed_types = ["binary", "numeric"]
     if wf_type not in allowed_types:
         raise ValueError(f"Method must be '{allowed_types}', got '{wf_type}' instead.")
@@ -577,8 +659,6 @@ if __name__ == "__main__":
     c.clean_data()
     c.write_file(folder="data/processed")
 
-
-if __name__ == "__main__":
     DataMerger(
         weather_path="data/processed/weather_data_processed.csv",
         calendar_path="data/processed/calendar_data_processed.csv",
