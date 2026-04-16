@@ -11,6 +11,49 @@ df["year"] = pd.to_datetime(df["year"], format="%Y").dt.year
 
 
 def Splitter(data: pd.DataFrame, year_col: str = "year"):
+    """Split a time-series DataFrame into incremental train/val/test folds.
+
+    Each fold adds one year to the training set, with a fixed validation
+    window of one year and a fixed test window of the year immediately
+    after. The minimum dataset length is 5 years: 3 for the first training
+    fold, 1 for validation, and 1 for testing.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing at least a year column with consecutive,
+        non-missing integer years.
+    year_col : str, optional
+        Name of the column containing year values, by default "year".
+
+    Returns
+    -------
+    folds : dict of str to dict
+        A dictionary where each key is a fold label (e.g. ``"Fold_1"``)
+        and each value is a dict with three keys:
+
+        - ``"train"`` : list of int — years used for training.
+        - ``"val"``   : list of int — single year used for validation.
+        - ``"test"``  : list of int — single year used for testing.
+
+    Raises
+    ------
+    ValueError
+        If fewer than 5 unique years are present in ``year_col``.
+    ValueError
+        If the years in ``year_col`` are not consecutive (i.e. gaps exist).
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({"year": range(2011, 2020), "feature": range(9)})
+    >>> folds = Splitter(df)
+    >>> folds["Fold_1"]
+    {'train': [2011, 2012, 2013], 'val': [2014], 'test': [2015]}
+    >>> folds["Fold_2"]
+    {'train': [2011, 2012, 2013, 2014], 'val': [2015], 'test': [2016]}
+    """
+    
     folds = {}
     years = []
 
