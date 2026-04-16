@@ -99,5 +99,5 @@ if __name__ == "__main__":
     }
 
     df = pd.DataFrame.from_dict(d, orient="index").transpose()
-    # df["year"] = pd.to_datetime(df["year"], format="%Y").dt.year
+
     Splitter(data=df)
