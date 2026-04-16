@@ -1,13 +1,7 @@
 import pandas as pd
+import logging
 
-d = {
-    "key1": [10, 100.1, 0.98, 1.2, 3.9, 5.3, 8.7, 16.2, 32],
-    "key2": [72.5],
-    "year": [2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019],
-}
-
-df = pd.DataFrame.from_dict(d, orient="index").transpose()
-df["year"] = pd.to_datetime(df["year"], format="%Y").dt.year
+logger = logging.getLogger(__name__)
 
 
 def Splitter(data: pd.DataFrame, year_col: str = "year"):
@@ -53,7 +47,7 @@ def Splitter(data: pd.DataFrame, year_col: str = "year"):
     >>> folds["Fold_2"]
     {'train': [2011, 2012, 2013, 2014], 'val': [2015], 'test': [2016]}
     """
-    
+
     folds = {}
     years = []
 
@@ -65,7 +59,9 @@ def Splitter(data: pd.DataFrame, year_col: str = "year"):
     expected_len_years = len(range(years[0], years[-1] + 1))
 
     if len_years <= 4:
-        raise ValueError(f"There are not enough years in this dataset. This function needs a minimum of 5 years, found {len_years}.")
+        raise ValueError(
+            f"There are not enough years in this dataset. This function needs a minimum of 5 years, found {len_years}."
+        )
 
     if len_years != expected_len_years:
         missing_years = []
@@ -76,27 +72,32 @@ def Splitter(data: pd.DataFrame, year_col: str = "year"):
 
     for i in range(len_years - 4):
         fold = f"Fold_{i + 1}"
-        val_index = i + 3   # Also used for training fold, because the slice excludes the validation year
+        val_index = (
+            i + 3
+        )  # Also used for training fold, because the slice excludes the validation year
         test_index = i + 4
-        folds[fold] = {'train': years[:val_index], 'val': [years[val_index]], 'test': [years[test_index]]}
+        folds[fold] = {
+            "train": years[:val_index],
+            "val": [years[val_index]],
+            "test": [years[test_index]],
+        }
+
+    logger.info(f"{len(folds)} sets of folds were created.")
+
     return folds
 
 
-mara = 1
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
-if mara == 1:
-    print(Splitter(data=df))
+    d = {
+        "key1": [10, 100.1, 0.98, 1.2, 3.9, 5.3, 8.7, 16.2, 32],
+        "feature": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        "year": [2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019],
+    }
 
-if mara == 2:
-    x, y, z = Splitter(data=df)
-    print(x, y, z)
-    for i in [1, 2, 3, 4, 5]:
-        fold = f"Fold_{i}"
-        print(f"This is {fold}!")
-        print("Training set")
-        print(df[df['year'].isin(x[fold])])
-        print("Validation set")
-        print(df[df['year'].isin(y[fold])])
-        print("Test")
-        print(df[df['year'].isin(z[fold])])
-
+    df = pd.DataFrame.from_dict(d, orient="index").transpose()
+    # df["year"] = pd.to_datetime(df["year"], format="%Y").dt.year
+    Splitter(data=df)

@@ -54,7 +54,7 @@ def wind_direction_converter(degrees: int):
 
 def rolling_windows(
     data: pd.DataFrame, method: str, columns: list[str], length: list[int], decimal: int
-):
+    ):
     """Creates summary statistics over sliding windows.
 
     Parameters
@@ -384,7 +384,7 @@ class CalendarPrep(BasePrep):
     """This class prepares the calendar data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
-        """Initialise class, configure logger and load the data.
+        """Initialise class and load the data.
 
         Parameters
         ----------
@@ -473,7 +473,7 @@ def DataMerger(
     wildfire_path: str,
     wf_type: str,
     output_folder: str,
-):
+    ):
     """Merge processed weather, calendar, and wildfire datasets and save splits.
 
     Loads the three processed datasets, validates their structure, and
