@@ -2,6 +2,7 @@ import pandas as pd
 from splitter import Splitter
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import RandomizedSearchCV
 from xgboost import XGBClassifier
 from evaluator import Evaluator
 
@@ -26,6 +27,17 @@ class BaseTrainer:
         X = data[self.feature_cols]
         y = data[self.target_col]
         return X, y
+
+    def _tune_hyperparameters(self, X_train, y_train):
+        search = RandomizedSearchCV(
+            estimator=self.model,
+            param_distributions=self.param_grid,  # See in model-specific trainer class
+            n_jobs=3,
+        )
+
+        search.fit(X_train, y_train)
+        self.model = search.best_estimator_
+        return search.best_params_
 
     def train_fold(self, fold_name: str, fold: dict):
 
@@ -57,6 +69,8 @@ class LogisticRegressionTrainer(BaseTrainer):
         feature_cols: list[str],
         year_col: str,
     ):
+        self.param_grid = {"C": [], "solver": []}
+
         super().__init__(data, target_col, feature_cols, year_col)
         self.model = LogisticRegression(
             random_state=2026, class_weight="balanced", max_iter=1000, n_jobs=3
@@ -71,6 +85,13 @@ class RandomForestTrainer(BaseTrainer):
         feature_cols: list[str],
         year_col: str,
     ):
+
+        self.param_grid = {
+            "n_estimators": [], 
+            "max_depth": [], 
+            "min_samples_leaf" : []
+            }
+
         super().__init__(data, target_col, feature_cols, year_col)
         self.model = RandomForestClassifier(
             random_state=2026, class_weight="balanced", n_jobs=3
@@ -85,6 +106,13 @@ class XGBoostTrainer(BaseTrainer):
         feature_cols: list[str],
         year_col: str,
     ):
+        
+        self.param_grid = {
+            "n_estimators": [], 
+            "max_depth": [], 
+            "learning_rate" : []
+            }
+
         super().__init__(data, target_col, feature_cols, year_col)
         self.model = XGBClassifier(random_state=2026, n_jobs=3)
 
