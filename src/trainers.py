@@ -68,7 +68,7 @@ class LogisticRegressionTrainer(BaseTrainer):
         year_col: str,
     ):
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = LogisticRegression(random_state=2026, class_weight="balanced")
+        self.model = LogisticRegression(random_state=2026, class_weight="balanced", max_iter=1000, n_jobs=3)
 
 
 class RandomForestTrainer(BaseTrainer):
@@ -80,7 +80,7 @@ class RandomForestTrainer(BaseTrainer):
         year_col: str,
     ):
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = RandomForestClassifier(random_state=2026, class_weight="balanced")
+        self.model = RandomForestClassifier(random_state=2026, class_weight="balanced", n_jobs=3)
 
 
 class XGBoostTrainer(BaseTrainer):
@@ -92,17 +92,17 @@ class XGBoostTrainer(BaseTrainer):
         year_col: str,
     ):
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = XGBClassifier(random_state=2026)
+        self.model = XGBClassifier(random_state=2026, n_jobs=3)
 
 
 if __name__ == "__main__":
     df = pd.read_csv("data/processed/train_binary_dataset.csv")
     fc = df.columns.drop(["date", "year", "wildfire"])
-    rf = RandomForestTrainer(
+    model = XGBoostTrainer(
         data=df, target_col="wildfire", feature_cols=fc, year_col="year"
     )
     flds = Splitter(data=df, year_col="year")
-    v, t = rf.run(folds=flds)
+    v, t = model.run(folds=flds)
     evaluation = Evaluator(v, t)
     ev, et = evaluation.evaluate()
     print(ev)
