@@ -32,31 +32,21 @@ class BaseTrainer:
         # Takes one fold dict from Splitter, fits the model, returns predictions
         X_train, y_train = self._get_fold_data(fold["train"])
         X_val, y_val = self._get_fold_data(fold["val"])
-        X_test, y_test = self._get_fold_data(fold["test"])
 
         self.model.fit(X_train, y_train)
         prob_val = self.model.predict_proba(X_val)[:, 1]
         val_results = pd.DataFrame(
             {"y_true": y_val, "y_pred": prob_val, "fold": fold_name}
         )
-
-        prob_test = self.model.predict_proba(X_test)[:, 1]
-        test_results = pd.DataFrame(
-            {"y_true": y_test, "y_pred": prob_test, "fold": fold_name}
-        )
-
-        return val_results, test_results
+        return val_results
 
     def run(self, folds: dict):
         # Loops over all folds and collects results
         val_results = []
-        test_results = []
         for fold_name, fold_dict in folds.items():
-            val_df, test_df = self.train_fold(fold_name=fold_name, fold=fold_dict)
+            val_df = self.train_fold(fold_name=fold_name, fold=fold_dict)
             val_results.append(val_df)
-            test_results.append(test_df)
-
-        return pd.concat(val_results), pd.concat(test_results)
+        return pd.concat(val_results)
 
 
 class LogisticRegressionTrainer(BaseTrainer):
@@ -68,7 +58,9 @@ class LogisticRegressionTrainer(BaseTrainer):
         year_col: str,
     ):
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = LogisticRegression(random_state=2026, class_weight="balanced", max_iter=1000, n_jobs=3)
+        self.model = LogisticRegression(
+            random_state=2026, class_weight="balanced", max_iter=1000, n_jobs=3
+        )
 
 
 class RandomForestTrainer(BaseTrainer):
@@ -80,7 +72,9 @@ class RandomForestTrainer(BaseTrainer):
         year_col: str,
     ):
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = RandomForestClassifier(random_state=2026, class_weight="balanced", n_jobs=3)
+        self.model = RandomForestClassifier(
+            random_state=2026, class_weight="balanced", n_jobs=3
+        )
 
 
 class XGBoostTrainer(BaseTrainer):
