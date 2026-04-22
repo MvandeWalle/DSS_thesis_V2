@@ -186,15 +186,4 @@ test.py
 .DSS-venv/bin/python3.12
 
 # Folders
-data/processed
-data/processed/test_binary_dataset.csv
-data/processed/test_binary_dataset.csv
-data/processed/test_numeric_dataset.csv
-data/processed/train_binary_dataset.csv
-data/processed/train_numeric_dataset.csv
-data/processed/test_binary_dataset.csv
-data/processed/test_binary_dataset.csv
-data/processed/test_numeric_dataset.csv
-data/processed/train_binary_dataset.csv
-data/processed/train_numeric_dataset.csv
-data/processed/weather_data_processed.csv
+data/processed/**
