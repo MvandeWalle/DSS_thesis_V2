@@ -309,6 +309,7 @@ class WeatherPrep(BasePrep):
         logger.info(
             f"WeatherPrep: file saved at {datapath} with shape {self.data.shape}."
         )
+        return datapath
 
 
 class WildfirePrep(BasePrep):
@@ -378,6 +379,7 @@ class WildfirePrep(BasePrep):
         logger.info(
             f"WildfirePrep: file saved at {n_datapath} with shape {self.numeric_wf_data.shape}."
         )
+        return b_datapath, n_datapath
 
 
 class CalendarPrep(BasePrep):
@@ -465,6 +467,7 @@ class CalendarPrep(BasePrep):
         logger.info(
             f"CalendarPrep: file saved at {datapath} with shape {self.data.shape}."
         )
+        return datapath
 
 
 def DataMerger(
@@ -606,6 +609,8 @@ def DataMerger(
         logger.info(
             f"Merger: binary dataset saved at {test_path} with shape {binary_test.shape}."
         )
+        
+        return binary_train, binary_test
 
     elif wf_type == "numeric":
         numeric_dataset = dataset.copy()
@@ -633,7 +638,7 @@ def DataMerger(
             f"Merger: numeric dataset saved at {test_path} with shape {numeric_test.shape}."
         )
 
-    return
+        return numeric_train, numeric_test
 
 
 if __name__ == "__main__":
