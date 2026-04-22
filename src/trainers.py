@@ -96,8 +96,7 @@ if __name__ == "__main__":
         data=df, target_col="wildfire", feature_cols=fc, year_col="year"
     )
     flds = Splitter(data=df, year_col="year")
-    v, t = model.run(folds=flds)
-    evaluation = Evaluator(v, t)
-    ev, et = evaluation.evaluate()
+    v = model.run(folds=flds)
+    evaluation = Evaluator(v)
+    ev = evaluation.evaluate()
     print(ev)
-    print(et)

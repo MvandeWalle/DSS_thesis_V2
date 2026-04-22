@@ -70,7 +70,11 @@ def Splitter(data: pd.DataFrame, year_col: str = "year"):
         raise ValueError(f"These years are missing: {missing_years}.")
 
     for i in range(len_years - 3):
-        fold = f"Fold_{i + 1}"
+        # For folds 1 to 9, a 0 is added before the fold number so the folds are properly ordered in the DataFrame later on.
+        if i < 9:   
+            fold = f"Fold_0{i + 1}"
+        else:
+            fold = f"Fold_{i + 1}" 
         val_index = (
             i + 3
         )  # Also used for training fold, because the slice excludes the validation year
