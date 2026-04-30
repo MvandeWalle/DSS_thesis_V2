@@ -75,17 +75,27 @@ def main():
     features = binary_train.columns.drop(["date", "year", "wildfire"])
 
     # Train and evaluate model
-    ## Binary datasets
-    output = {}
-    for trainer, name in zip([RandomForestTrainer, XGBoostTrainer], ["RandomForest", "XGBoost"]):
-        model_trainer = trainer(data=binary_train, target_col="wildfire", feature_cols=features, year_col="year")
-        v, t = model_trainer.run(folds)
-        evaluation = Evaluator(v, t)
-        ev, et = evaluation.evaluate()
-        output[f"{name}_val_results"] = ev
-        output[f"{name}_test_results"] = et
+    ## Binary 
+    def xxx():
+        output = {}
+        for trainer, name in zip([RandomForestTrainer, XGBoostTrainer], ["RandomForest", "XGBoost"]):
+            model_trainer = trainer(data=binary_train, target_col="wildfire", feature_cols=features, year_col="year")
+            val, pms = model_trainer.run(folds)
+            evaluation = Evaluator(val)
+            ev = evaluation.evaluate()
+            
+            output[f"{name}_val_results"] = ev.merge(pms)
 
-        print(output)
+            print(output)
+
+    output = {}
+    rf_trainer = RandomForestTrainer(data=binary_train, target_col="wildfire", feature_cols=features, year_col="year")
+    val, pms = rf_trainer.run(folds)
+    logger.info("The model has been trained, starting evaluation")
+    evalu = Evaluator(val, pms)
+    ev = evalu.evaluate()
+    output["RF_val_results"] = ev.merge(pms)
+    print(output)
 
 
 def unused():
