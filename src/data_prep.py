@@ -54,7 +54,7 @@ def wind_direction_converter(degrees: int):
 
 def rolling_windows(
     data: pd.DataFrame, method: str, columns: list[str], length: list[int], decimal: int
-    ):
+):
     """Creates summary statistics over sliding windows.
 
     Parameters
@@ -305,7 +305,7 @@ class WeatherPrep(BasePrep):
 
     def write_file(self, folder: str):
         datapath = f"{folder}/weather_data_processed.csv"
-        self.data.to_csv(datapath, sep=",")
+        self.data.to_csv(datapath, sep=",", index=False)
         logger.info(
             f"WeatherPrep: file saved at {datapath} with shape {self.data.shape}."
         )
@@ -371,11 +371,11 @@ class WildfirePrep(BasePrep):
     def write_file(self, folder: str):
         b_datapath = f"{folder}/binary_wf.csv"
         n_datapath = f"{folder}/numeric_wf.csv"
-        self.binary_wf_data.to_csv(b_datapath, sep=",")
+        self.binary_wf_data.to_csv(b_datapath, sep=",", index=False)
         logger.info(
             f"WildfirePrep: file saved at {b_datapath} with shape {self.binary_wf_data.shape}."
         )
-        self.numeric_wf_data.to_csv(n_datapath, sep=",")
+        self.numeric_wf_data.to_csv(n_datapath, sep=",", index=False)
         logger.info(
             f"WildfirePrep: file saved at {n_datapath} with shape {self.numeric_wf_data.shape}."
         )
@@ -463,7 +463,7 @@ class CalendarPrep(BasePrep):
 
     def write_file(self, folder: str):
         datapath = f"{folder}/calendar_data_processed.csv"
-        self.data.to_csv(datapath, sep=",")
+        self.data.to_csv(datapath, sep=",", index=False)
         logger.info(
             f"CalendarPrep: file saved at {datapath} with shape {self.data.shape}."
         )
@@ -476,7 +476,7 @@ def DataMerger(
     wildfire_path: str,
     wf_type: str,
     output_folder: str,
-    ):
+):
     """Merge processed weather, calendar, and wildfire datasets and save splits.
 
     Loads the three processed datasets, validates their structure, and
@@ -540,9 +540,9 @@ def DataMerger(
         raise ValueError(f"Method must be '{allowed_types}', got '{wf_type}' instead.")
 
     # Load the files
-    weather = pd.read_csv(weather_path, index_col=0)
-    calendar = pd.read_csv(calendar_path, index_col=0)
-    wildfire = pd.read_csv(wildfire_path, index_col=0)
+    weather = pd.read_csv(weather_path)
+    calendar = pd.read_csv(calendar_path)
+    wildfire = pd.read_csv(wildfire_path)
 
     for name, df in {
         "weather": weather,
@@ -586,6 +586,13 @@ def DataMerger(
             binary_dataset["wildfire"].fillna(False).astype(bool)
         )
 
+        # Example data
+        example_binary = binary_dataset[
+            (binary_dataset["date"] >= "2011-01-01")
+            & (binary_dataset["date"] <= "2015-12-31")
+        ]
+        example_binary.to_csv("example_data/example_binary.csv", sep=",", index=False)
+
         # For training and validating
         binary_train = binary_dataset[
             (binary_dataset["date"] >= "2011-01-01")
@@ -593,7 +600,7 @@ def DataMerger(
         ]
 
         train_path = f"{output_folder}/train_binary_dataset.csv"
-        binary_train.to_csv(train_path, sep=",")
+        binary_train.to_csv(train_path, sep=",", index=False)
         logger.info(
             f"Merger: binary dataset saved at {train_path} with shape {binary_train.shape}."
         )
@@ -605,16 +612,23 @@ def DataMerger(
         ]
 
         test_path = f"{output_folder}/test_binary_dataset.csv"
-        binary_test.to_csv(test_path, sep=",")
+        binary_test.to_csv(test_path, sep=",", index=False)
         logger.info(
             f"Merger: binary dataset saved at {test_path} with shape {binary_test.shape}."
         )
-        
+
         return binary_train, binary_test
 
     elif wf_type == "numeric":
         numeric_dataset = dataset.copy()
         numeric_dataset["wildfire"] = numeric_dataset["wildfire"].fillna(0).astype(int)
+
+        # Example data
+        example_numeric = numeric_dataset[
+            (numeric_dataset["date"] >= "2011-01-01")
+            & (numeric_dataset["date"] <= "2015-12-31")
+        ]
+        example_numeric.to_csv("example_data/example_numeric.csv", sep=",", index=False)
 
         # For training and validating
         numeric_train = numeric_dataset[
@@ -622,7 +636,7 @@ def DataMerger(
             & (numeric_dataset["date"] <= "2023-12-31")
         ]
         train_path = f"{output_folder}/train_numeric_dataset.csv"
-        numeric_train.to_csv(train_path, sep=",")
+        numeric_train.to_csv(train_path, sep=",", index=False)
         logger.info(
             f"Merger: numeric dataset saved at {train_path} with shape {numeric_train.shape}."
         )
@@ -633,7 +647,7 @@ def DataMerger(
             & (numeric_dataset["date"] <= "2025-12-31")
         ]
         test_path = f"{output_folder}/test_numeric_dataset.csv"
-        numeric_test.to_csv(test_path, sep=",")
+        numeric_test.to_csv(test_path, sep=",", index=False)
         logger.info(
             f"Merger: numeric dataset saved at {test_path} with shape {numeric_test.shape}."
         )
