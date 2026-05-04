@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, TimeSeriesSplit
 from xgboost import XGBClassifier
 from evaluator import Evaluator
 
@@ -207,12 +207,37 @@ class LogisticRegressionTrainer(BaseTrainer):
         year_col: str,
     ):
 
-        self.param_grid = {"C": [0.01, 0.1, 1, 10, 100]}
+        self.param_grid = {
+            "classifier__C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
+            "classifier__class_weight": ["balanced", None],
+        }
 
         super().__init__(data, target_col, feature_cols, year_col)
-        self.model = LogisticRegression(
-            random_state=2026, class_weight="balanced", max_iter=1000, solver="lbfgs"
+        self.model = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "classifier",
+                    LogisticRegression(
+                        random_state=2026,
+                        max_iter=1000,
+                        solver="lbfgs",
+                    ),
+                ),
+            ]
         )
+    
+    def _tune_hyperparameters(self, X_train, y_train):
+        search = GridSearchCV(
+            estimator=self.model,
+            param_grid=self.param_grid,
+            n_jobs=-1,
+            scoring="average_precision",
+            cv=TimeSeriesSplit(n_splits=3),
+        )
+        search.fit(X_train, y_train)
+        self.model = search.best_estimator_
+        return search.best_params_
 
 
 if __name__ == "__main__":
@@ -222,10 +247,10 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     # Load training data and define features
-    df = pd.read_csv("data/processed/example_dataset.csv")
+    df = pd.read_csv("data/processed/train_dataset.csv")
     fc = df.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
-    # Load  testing data 
+    # Load  testing data
     testing_data = pd.read_csv("data/processed/test_dataset.csv")
 
     # Define folds
@@ -235,9 +260,11 @@ if __name__ == "__main__":
     metrics = []
 
     # Train and evaluate
-    for TrainerClass in [DummyTrainer, RandomForestTrainer, XGBoostTrainer]:
+    for TrainerClass in [DummyTrainer, RandomForestTrainer, XGBoostTrainer, LogisticRegressionTrainer]:
         logger.info(f"Running {TrainerClass.__name__}...")
-        model = TrainerClass(data=df, target_col="binary_wf", feature_cols=fc, year_col="year")
+        model = TrainerClass(
+            data=df, target_col="binary_wf", feature_cols=fc, year_col="year"
+        )
         v, p = model.run(folds=folds)
         # evaluation = Evaluator(validation_results=v, best_parameters=p)
         # ev = evaluation.evaluate()
@@ -260,5 +287,5 @@ if __name__ == "__main__":
         }
 
         metrics.append(eval_metrics)
-    
+
     print(pd.DataFrame(metrics))
