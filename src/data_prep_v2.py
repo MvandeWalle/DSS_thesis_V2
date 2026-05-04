@@ -99,18 +99,7 @@ def rolling_windows(
     return data
 
 
-class BasePrep:
-    def __init__(self, data_path: str):
-        self.data = pd.read_csv(data_path)
-
-    def clean_data(self):
-        raise NotImplementedError
-
-    def write_file(self):
-        raise NotImplementedError
-
-
-class WeatherPrep(BasePrep):
+class WeatherPrep():
     """This class prepares the weather data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
@@ -189,9 +178,6 @@ class WeatherPrep(BasePrep):
             raise ValueError(
                 f"Found {self.data.isna().sum().sum()} missing values, expected 0. Please inspect your dataset."
             )
-
-        # Change the date format to datetime64
-        self.data["date"] = pd.to_datetime(self.data["date"], format="%Y%m%d")
 
         logger.debug(f"WeatherPrep: data is cleaned. Shape is {self.data.shape}")
 
@@ -312,7 +298,7 @@ class WeatherPrep(BasePrep):
         return datapath
 
 
-class WildfirePrep(BasePrep):
+class WildfirePrep():
     """This class prepares the wildfire data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
@@ -375,7 +361,7 @@ class WildfirePrep(BasePrep):
         return output_datapath
 
 
-class CalendarPrep(BasePrep):
+class CalendarPrep():
     """This class prepares the calendar data"""
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
@@ -472,11 +458,9 @@ def DataMerger(
     """Merge processed weather, calendar, and wildfire datasets and save splits.
 
     Loads the three processed datasets, validates their structure, and
-    merges them on the ``date`` column. The wildfire target column is
-    encoded as either binary (bool) or numeric (int) depending on
-    ``wf_type``. The merged dataset is then split chronologically into a
-    training set (2011–2023) and an out-of-sample test set (2024–2025),
-    both of which are written to CSV.
+    merges them on the ``date`` column. The wildfire target columns are
+    encoded as binary (int; 0/1) and numeric (int). The merged dataset is then split chronologically into a training set (2011–2023) and an out-of-sample test set (2024–2025),
+    both of which are written to CSV. Example data is also created (2011-2015).
 
     Note: the wildfire dataset may contain multiple fire records per day
     by design, so duplicate date checks are not applied to it.
@@ -495,11 +479,8 @@ def DataMerger(
 
     Returns
     -------
-    None
-        Writes up to two CSV files to ``output_folder``:
+    Three datasets: example, train, and test. These are also written to csv file.
 
-        - ``train_<wf_type>_dataset.csv`` — rows from 2011 to 2023.
-        - ``test_<wf_type>_dataset.csv``  — rows from 2024 to 2025.
 
     Raises
     ------
@@ -532,6 +513,8 @@ def DataMerger(
     }.items():
         if "date" not in df.columns:
             raise KeyError(f"{name} dataset missing 'date' column.")
+
+        # Not really necessary for wildfire, but easier to keep one loop for everything.
         if df["date"].duplicated().any():
             raise ValueError(f"{name} dataset contains duplicate dates.")
 
