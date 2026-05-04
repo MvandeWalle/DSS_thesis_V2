@@ -83,7 +83,7 @@ def Splitter(data: pd.DataFrame, year_col: str = "year"):
             "val": [years[val_index]]
         }
 
-    logger.info(f"{len(folds)} sets of folds were created.")
+    logger.debug(f"{len(folds)} sets of folds were created.")
 
     return folds
 
