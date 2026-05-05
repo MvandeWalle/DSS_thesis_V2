@@ -7,8 +7,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, TimeSeriesSplit
+from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
 from xgboost import XGBClassifier
-from evaluator import Evaluator
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class BaseTrainer:
         self.target_col = target_col
         self.feature_cols = feature_cols
         self.year_col = year_col
-        self.model = None  # child classes will set this
+        self.model = None  # specified in child classes
 
         logger.info(f"{self.__class__.__name__} initialised.")
 
@@ -101,6 +101,9 @@ class BaseTrainer:
             k: int(v) if isinstance(v, float) and v.is_integer() else v
             for k, v in best_params.items()
         }
+        # Replace NaN with None (pandas converts None to NaN in DataFrames)
+        best_params = {k: None if pd.isna(v) else v for k, v in best_params.items()}
+
         self.model.set_params(**best_params)
 
         # Fit the model
@@ -210,6 +213,7 @@ class LogisticRegressionTrainer(BaseTrainer):
         self.param_grid = {
             "classifier__C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
             "classifier__class_weight": ["balanced", None],
+            "classifier__penalty": ["l1", "l2", "elasticnet"],
         }
 
         super().__init__(data, target_col, feature_cols, year_col)
@@ -221,12 +225,12 @@ class LogisticRegressionTrainer(BaseTrainer):
                     LogisticRegression(
                         random_state=2026,
                         max_iter=1000,
-                        solver="lbfgs",
+                        solver="saga",
                     ),
                 ),
             ]
         )
-    
+
     def _tune_hyperparameters(self, X_train, y_train):
         search = GridSearchCV(
             estimator=self.model,
@@ -247,7 +251,7 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     # Load training data and define features
-    df = pd.read_csv("data/processed/train_dataset.csv")
+    df = pd.read_csv("data/processed/example_dataset.csv")
     fc = df.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
     # Load  testing data
@@ -260,19 +264,24 @@ if __name__ == "__main__":
     metrics = []
 
     # Train and evaluate
-    for TrainerClass in [DummyTrainer, RandomForestTrainer, XGBoostTrainer, LogisticRegressionTrainer]:
-        logger.info(f"Running {TrainerClass.__name__}...")
+    for TrainerClass in [
+        DummyTrainer,
+        RandomForestTrainer,
+        XGBoostTrainer,
+        # LogisticRegressionTrainer,
+    ]:
+        logger.debug(f"Running {TrainerClass.__name__}...")
         model = TrainerClass(
             data=df, target_col="binary_wf", feature_cols=fc, year_col="year"
         )
-        v, p = model.run(folds=folds)
-        # evaluation = Evaluator(validation_results=v, best_parameters=p)
-        # ev = evaluation.evaluate()
 
+        # Train the model
+        model.run(folds=folds)
+
+        # Run it on the test set
         output = model.train_final(testing_data=testing_data)
 
-        from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
-
+        # Compute the evaluation statistics
         auprc = average_precision_score(
             y_true=output["y_true"], y_score=output["y_pred"]
         )
