@@ -47,7 +47,7 @@ class BaseTrainer:
     def _tune_hyperparameters(self, X_train, y_train):
 
         # In _tune_hyperparameters, before creating the search:
-        labels = sorted(self.data[self.target_col].unique())
+        labels = sorted(y_train.unique())
         scorer = make_scorer(
             log_loss,
             response_method="predict_proba",
@@ -79,7 +79,15 @@ class BaseTrainer:
         best_prms = self._tune_hyperparameters(X_train=X_train, y_train=y_train)
 
         # Predict probability and put the results in a DataFrame
-        prob_val = self.model.predict_proba(X_val)[:, 1]
+        all_probs = self.model.predict_proba(X_val)
+
+        if all_probs.shape[1] > 2:
+            # numeric_wf: sum all columns from index 1 onwards
+            prob_val = all_probs[:, 1:].sum(axis=1)
+        else:
+            # binary_wf
+            prob_val = all_probs[:, 1]
+
         val_results = pd.DataFrame(
             {"Model": self.model.__class__.__name__, "Fold": fold_name, "y_true": y_val, "y_pred": prob_val}
         )
@@ -135,8 +143,16 @@ class BaseTrainer:
         self.model.fit(X=X_train, y=y_train)
 
         # Predict probabilities on the testing data
-        prob = self.model.predict_proba(X_test)[:, 1]
+        all_probs_test = self.model.predict_proba(X_test)
+        if all_probs_test.shape[1] > 2:
+            prob = all_probs_test[:, 1:].sum(axis=1)
+        else:
+            prob = all_probs_test[:, 1]
         final_results = pd.DataFrame({"y_true": y_test, "y_pred": prob})
+
+        if self.target_col != "binary_wf":
+            binary_data = testing_data[testing_data[self.year_col].isin([2024, 2025])]
+            final_results["y_true_binary"] = binary_data[self.binary_col]
 
         return final_results
 
@@ -187,9 +203,20 @@ class DummyTrainer(BaseTrainer):
 
         # No hyperparameters to set for DummyClassifier
         self.model.fit(X_train, y_train)
-        prob = self.model.predict_proba(X_test)[:, 1]
 
-        return pd.DataFrame({"y_true": y_test, "y_pred": prob})
+        all_probs_test = self.model.predict_proba(X_test)
+        if all_probs_test.shape[1] > 2:
+            prob = all_probs_test[:, 1:].sum(axis=1)
+        else:
+            prob = all_probs_test[:, 1]
+
+        final_results = pd.DataFrame({"y_true": y_test, "y_pred": prob})
+
+        if self.target_col != "binary_wf":
+            binary_data = testing_data[testing_data[self.year_col].isin([2024, 2025])]
+            final_results["y_true_binary"] = binary_data[self.binary_col]
+
+        return final_results
 
 
 class RandomForestTrainer(BaseTrainer):
