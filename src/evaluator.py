@@ -3,9 +3,11 @@ from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
 
 
 class Evaluator:
-    def __init__(self, validation_results: pd.DataFrame, best_parameters: pd.DataFrame):
+    def __init__(self, validation_results: pd.DataFrame, best_parameters: pd.DataFrame, model: str, target_type: str = "binary"):
         self.val_results = validation_results
         self.best_parameters = best_parameters
+        self.model_name = model
+        self.target_type = target_type
 
     def evaluate_fold(self, fold_df: pd.DataFrame, fold_name: str = "empty"):
         auprc = average_precision_score(
@@ -15,6 +17,7 @@ class Evaluator:
         f1 = f1_score(y_true=fold_df["y_true"], y_pred=fold_df["y_pred"].round())
 
         eval_metrics = {
+            "Model": self.model_name,
             "Fold": fold_name,
             "AUPRC": auprc,
             "Brier Score": brier,
@@ -34,4 +37,3 @@ class Evaluator:
         output = evaluation_df.merge(self.best_parameters, on="Fold", how='left')
 
         return output
-
