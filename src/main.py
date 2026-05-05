@@ -14,7 +14,7 @@ from trainers import (
     XGBoostTrainer,
 )
 
-from evaluator import Evaluator
+from evaluator import Evaluator, evaluate_final
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -63,16 +63,17 @@ def main():
 
     # Train and evaluate model
     validation_output = pd.DataFrame()
+    test_output = []
     for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
-        if target == "binary_wf":
-            models = [
+        models = [
                 DummyTrainer,
                 RandomForestTrainer,
                 XGBoostTrainer,
                 # LogisticRegressionTrainer,
             ]
-        elif target == "numeric_wf":
-            models = [DummyTrainer, RandomForestTrainer, XGBoostTrainer]
+        if (target != "binary_wf") and (LogisticRegressionTrainer in models):
+            models = models.remove(LogisticRegressionTrainer)
+
         for TrainerClass in models:
             model_trainer = TrainerClass(
                 data=current_dataset,
@@ -81,6 +82,8 @@ def main():
                 year_col="year",
                 binary_col=bi_col,
             )
+
+            logger.info(f"{TrainerClass.__name__} with target {target} started.")
 
             val, pms = model_trainer.run(folds)
             evaluation = Evaluator(
@@ -93,17 +96,18 @@ def main():
 
             validation_output = pd.concat([validation_output, ev], ignore_index=True)
 
+            # Predict on the test set
+            output_per_model = model_trainer.train_final(testing_data=test_data)
+            evaluation_per_model = evaluate_final(output_per_model, target_type=target, model_name=TrainerClass.__name__)
+
+            test_output.append(evaluation_per_model)
+
+    test_output = pd.DataFrame(test_output)
+
     logger.info(f"The validation output per fold per model: \n {validation_output}")
-
-    # Predict
-    test_output = pd.DataFrame()
-
-
-
-
-
-
     logger.info(f"The test output per model: \n {test_output}")
+  
+    
     # Evaluate model_selection
 
     # Evaluate features
