@@ -1,5 +1,5 @@
 import logging
-from data_prep import (
+from data_prep_v2 import (
     WeatherPrep,
     WildfirePrep,
     CalendarPrep,
@@ -7,6 +7,7 @@ from data_prep import (
 )
 from splitter import Splitter
 from trainers import (
+    DummyTrainer,
     LogisticRegressionTrainer,
     RandomForestTrainer,
     XGBoostTrainer,
@@ -20,6 +21,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 # Run dataprep
 ## Weather
 def main():
@@ -27,7 +29,7 @@ def main():
         data_path="data/raw/weather_data_original.txt", skip_rows=22, separator=","
     )
     weather.clean_data()
-    weather.feature_engineering(window_length=[3, 7, 28])
+    weather.feature_engineering(window_length=[8, 16, 24, 32, 40, 48, 56, 64, 72, 80])
     weather_path = weather.write_file(folder="data/processed")
 
     ## Calendar
@@ -39,94 +41,60 @@ def main():
     wildfire = WildfirePrep(data_path="data/raw/wildfire_data.csv", separator=";")
     wildfire.clean_data()
     wildfire.feature_engineering()
-    binary_wildfire_path, numeric_wildfire_path = wildfire.write_file(
-        folder="data/processed"
-    )
-
+    wildfire_path = wildfire.write_file(folder="data/processed")
 
     # Merge the data
-    ## Binary dataset
-    binary_train, binary_test = DataMerger(
+    example_data, train_data, test_data = DataMerger(
         weather_path=weather_path,
         calendar_path=calendar_path,
-        wildfire_path=binary_wildfire_path,
-        wf_type="binary",
+        wildfire_path=wildfire_path,
         output_folder="data/processed",
     )
 
-    ## Numeric dataset
-    numeric_train, numeric_test = DataMerger(
-        weather_path=weather_path,
-        calendar_path=calendar_path,
-        wildfire_path=numeric_wildfire_path,
-        wf_type="numeric",
-        output_folder="data/processed",
-    )
-
-    # Quick check
-    if not (binary_train["date"].values == numeric_train["date"].values).all():
-        raise ValueError("Date mismatch between binary and numeric datasets.")
+    current_dataset = example_data
 
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
-    folds = Splitter(binary_train, year_col="year")
+    folds = Splitter(current_dataset, year_col="year")
+    print(folds)
 
     ## Create a list of relevant features
-    features = binary_train.columns.drop(["date", "year", "wildfire"])
+    features = train_data.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
     # Train and evaluate model
-    ## Binary 
-    def xxx():
-        output = {}
-        for trainer, name in zip([RandomForestTrainer, XGBoostTrainer], ["RandomForest", "XGBoost"]):
-            model_trainer = trainer(data=binary_train, target_col="wildfire", feature_cols=features, year_col="year")
-            val, pms = model_trainer.run(folds)
-            evaluation = Evaluator(val)
-            ev = evaluation.evaluate()
-            
-            output[f"{name}_val_results"] = ev.merge(pms)
+    ## Binary
+    output = []
+    for TrainerClass in [
+        DummyTrainer,
+        RandomForestTrainer,
+        XGBoostTrainer,
+    ]:
+        model_trainer = TrainerClass(
+            data=current_dataset,
+            target_col="binary_wf",
+            feature_cols=features,
+            year_col="year",
+        )
 
-            print(output)
+        val, pms = model_trainer.run(folds)
+        evaluation = Evaluator(
+            validation_results=val, best_parameters=pms, model=TrainerClass.__name__
+        )
+        ev = evaluation.evaluate()
 
-    output = {}
-    rf_trainer = RandomForestTrainer(data=binary_train, target_col="wildfire", feature_cols=features, year_col="year")
-    val, pms = rf_trainer.run(folds)
-    logger.info("The model has been trained, starting evaluation")
-    evalu = Evaluator(val, pms)
-    ev = evalu.evaluate()
-    output["RF_val_results"] = ev.merge(pms)
-    print(output)
+        # output[f"{TrainerClass.__name__}_val_results"] = ev.merge(pms)
 
+        print(ev)
 
-def unused():
-    ### Logistic Regression
-    LogReg = LogisticRegressionTrainer(
-        data=binary_train, target_col="wildfire", feature_cols=features, year_col="year"
-    )
-    v, t = LogReg.run(folds)
-    LogRegEvaluation = Evaluator(v, t)
-
-    ### Random Forest
-    RanFor = RandomForestTrainer(
-        data=binary_train, target_col="wildfire", feature_cols=features, year_col="year"
-    )
-    v, t = RanFor.run(folds)
-    RanForEvaluation = Evaluator(v, t)
-
-    ### XGBoost
-    xgb = XGBoostTrainer(
-        data=binary_train, target_col="wildfire", feature_cols=features, year_col="year"
-    )
-    v, t = xgb.run(folds)
-    xgbEvaluation = Evaluator(v, t)
 
 
 # Predict
 
-# Evaluate
+# Evaluate model_selection
+
+# Evaluate features
 
 # Log results
-
 
 
 if __name__ == "__main__":
