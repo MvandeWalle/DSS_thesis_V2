@@ -1,4 +1,5 @@
 import logging
+import pandas as pd
 from data_prep_v2 import (
     WeatherPrep,
     WildfirePrep,
@@ -56,45 +57,58 @@ def main():
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
     folds = Splitter(current_dataset, year_col="year")
-    print(folds)
 
     ## Create a list of relevant features
     features = train_data.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
     # Train and evaluate model
-    ## Binary
-    output = []
-    for TrainerClass in [
-        DummyTrainer,
-        RandomForestTrainer,
-        XGBoostTrainer,
-    ]:
-        model_trainer = TrainerClass(
-            data=current_dataset,
-            target_col="binary_wf",
-            feature_cols=features,
-            year_col="year",
-        )
+    validation_output = pd.DataFrame()
+    for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
+        if target == "binary_wf":
+            models = [
+                DummyTrainer,
+                RandomForestTrainer,
+                XGBoostTrainer,
+                # LogisticRegressionTrainer,
+            ]
+        elif target == "numeric_wf":
+            models = [DummyTrainer, RandomForestTrainer, XGBoostTrainer]
+        for TrainerClass in models:
+            model_trainer = TrainerClass(
+                data=current_dataset,
+                target_col=target,
+                feature_cols=features,
+                year_col="year",
+                binary_col=bi_col,
+            )
 
-        val, pms = model_trainer.run(folds)
-        evaluation = Evaluator(
-            validation_results=val, best_parameters=pms, model=TrainerClass.__name__
-        )
-        ev = evaluation.evaluate()
+            val, pms = model_trainer.run(folds)
+            evaluation = Evaluator(
+                validation_results=val,
+                best_parameters=pms,
+                model=TrainerClass.__name__,
+                target_type=target,
+            )
+            ev = evaluation.evaluate()
 
-        # output[f"{TrainerClass.__name__}_val_results"] = ev.merge(pms)
+            validation_output = pd.concat([validation_output, ev], ignore_index=True)
 
-        print(ev)
+    logger.info(f"The validation output per fold per model: \n {validation_output}")
+
+    # Predict
+    test_output = pd.DataFrame()
 
 
 
-# Predict
 
-# Evaluate model_selection
 
-# Evaluate features
 
-# Log results
+    logger.info(f"The test output per model: \n {test_output}")
+    # Evaluate model_selection
+
+    # Evaluate features
+
+    # Log results
 
 
 if __name__ == "__main__":
