@@ -188,3 +188,4 @@ test.py
 # Folders
 data/processed/**
 test.ipynb
+data/processed/weather_data_processed.csv
