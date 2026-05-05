@@ -37,9 +37,9 @@ class Evaluator:
             "Model": self.model_name,
             "Target type": self.target_type,
             "Fold": fold_name,
-            "AUPRC": auprc,
-            "Brier Score": brier,
-            "F1-score": f1,
+            "AUPRC": round(auprc, 3),
+            "Brier Score": round(brier, 3),
+            "F1-score": round(f1, 3),
         }
 
         return eval_metrics
@@ -55,6 +55,29 @@ class Evaluator:
         output = evaluation_df.merge(self.best_parameters, on="Fold", how="left")
 
         return output
+
+def evaluate_final(test_results, target_type, model_name):
+    if target_type == "numeric_wf":
+        y_true = test_results["y_true_binary"]
+    else:
+        y_true = test_results["y_true"]
+
+    auprc = average_precision_score(y_true=y_true, y_score=test_results["y_pred"])
+    brier = brier_score_loss(y_true=y_true, y_proba=test_results["y_pred"])
+    f1 = f1_score(y_true=y_true, y_pred=test_results["y_pred"].round())
+
+    eval_metrics = {
+        "Model": model_name,
+        "Target type": target_type,
+        "AUPRC": round(auprc, 3),
+        "Brier Score": round(brier, 3),
+        "F1-score": round(f1, 3),
+    }
+
+    return eval_metrics
+
+
+
 
 
 if __name__ == "__main__":
