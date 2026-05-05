@@ -292,7 +292,7 @@ class WeatherPrep():
     def write_file(self, folder: str):
         datapath = f"{folder}/weather_data_processed.csv"
         self.data.to_csv(datapath, sep=",", index=False)
-        logger.info(
+        logger.debug(
             f"WeatherPrep: file saved at {datapath} with shape {self.data.shape}."
         )
         return datapath
@@ -354,7 +354,7 @@ class WildfirePrep():
         output_datapath = f"{folder}/wildfire_processed.csv"
 
         self.wildfire_dates.to_csv(output_datapath, sep=",", index=False)
-        logger.info(
+        logger.debug(
             f"WildfirePrep: file saved at {output_datapath} with shape {self.wildfire_dates.shape}."
         )
 
@@ -443,7 +443,7 @@ class CalendarPrep():
     def write_file(self, folder: str):
         datapath = f"{folder}/calendar_data_processed.csv"
         self.data.to_csv(datapath, sep=",", index=False)
-        logger.info(
+        logger.debug(
             f"CalendarPrep: file saved at {datapath} with shape {self.data.shape}."
         )
         return datapath
