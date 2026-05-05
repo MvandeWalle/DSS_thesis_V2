@@ -80,6 +80,4 @@ if __name__ == "__main__":
         )
         ev = evaluation.evaluate()
 
-        # output[f"{TrainerClass.__name__}_val_results"] = ev.merge(pms)
-
         print(ev)
