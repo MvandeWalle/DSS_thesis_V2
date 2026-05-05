@@ -7,7 +7,13 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, TimeSeriesSplit
-from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    f1_score,
+    log_loss,
+    make_scorer,
+)
 from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
@@ -20,12 +26,14 @@ class BaseTrainer:
         target_col: str,
         feature_cols: list[str],
         year_col: str,
+        binary_col: str = None,
     ):
         self.data = data
         self.target_col = target_col
         self.feature_cols = feature_cols
         self.year_col = year_col
         self.model = None  # specified in child classes
+        self.binary_col = binary_col
 
         logger.info(f"{self.__class__.__name__} initialised.")
 
@@ -37,11 +45,21 @@ class BaseTrainer:
         return X, y
 
     def _tune_hyperparameters(self, X_train, y_train):
+
+        # In _tune_hyperparameters, before creating the search:
+        labels = sorted(self.data[self.target_col].unique())
+        scorer = make_scorer(
+            log_loss,
+            response_method="predict_proba",
+            labels=labels,
+            greater_is_better=False,
+        )
+
         search = RandomizedSearchCV(
             estimator=self.model,
             param_distributions=self.param_grid,  # See in model-specific trainer class
             n_jobs=-1,
-            scoring="average_precision",
+            scoring=scorer,
             cv=TimeSeriesSplit(n_splits=3),
             n_iter=20,
             random_state=2026,
@@ -63,8 +81,12 @@ class BaseTrainer:
         # Predict probability and put the results in a DataFrame
         prob_val = self.model.predict_proba(X_val)[:, 1]
         val_results = pd.DataFrame(
-            {"y_true": y_val, "y_pred": prob_val, "Fold": fold_name}
+            {"Fold": fold_name, "y_true": y_val, "y_pred": prob_val}
         )
+
+        if self.binary_col is not None:
+            binary_data = self.data[self.data[self.year_col].isin(fold["val"])]
+            val_results["y_true_binary"] = binary_data[self.binary_col]
 
         # Add the parameters to the dataframe
         params_results = pd.DataFrame([{"Fold": fold_name, **best_prms}])
@@ -81,7 +103,9 @@ class BaseTrainer:
             best_params_per_fold.append(params_dict)
             logger.debug(f"{fold_name} was completed.")
         self.best_params_per_fold = pd.concat(best_params_per_fold)
-        logger.info(f"Evaluation metrics per fold for {self.model.__class__.__name__}: \n {self.best_params_per_fold}")
+        logger.info(
+            f"Evaluation metrics per fold for {self.model.__class__.__name__}: \n {self.best_params_per_fold}"
+        )
         return pd.concat(val_results), self.best_params_per_fold
 
     def train_final(self, testing_data: pd.DataFrame):
@@ -124,9 +148,10 @@ class DummyTrainer(BaseTrainer):
         target_col: str,
         feature_cols: list[str],
         year_col: str,
+        binary_col: str,
     ):
 
-        super().__init__(data, target_col, feature_cols, year_col)
+        super().__init__(data, target_col, feature_cols, year_col, binary_col)
         self.model = DummyClassifier(random_state=2026, strategy="prior")
 
     def train_fold(self, fold_name: str, fold: dict):
@@ -169,6 +194,7 @@ class RandomForestTrainer(BaseTrainer):
         target_col: str,
         feature_cols: list[str],
         year_col: str,
+        binary_col: str,
     ):
 
         self.param_grid = {
@@ -177,7 +203,7 @@ class RandomForestTrainer(BaseTrainer):
             "min_samples_leaf": [1, 5, 10, 20],
         }
 
-        super().__init__(data, target_col, feature_cols, year_col)
+        super().__init__(data, target_col, feature_cols, year_col, binary_col)
         self.model = RandomForestClassifier(
             random_state=2026, class_weight="balanced", n_jobs=-1
         )
@@ -190,6 +216,7 @@ class XGBoostTrainer(BaseTrainer):
         target_col: str,
         feature_cols: list[str],
         year_col: str,
+        binary_col: str,
     ):
 
         self.param_grid = {
@@ -198,7 +225,7 @@ class XGBoostTrainer(BaseTrainer):
             "learning_rate": [0.01, 0.05, 0.1, 0.2],
         }
 
-        super().__init__(data, target_col, feature_cols, year_col)
+        super().__init__(data, target_col, feature_cols, year_col, binary_col)
         self.model = XGBClassifier(random_state=2026, n_jobs=-1)
 
 
@@ -209,6 +236,7 @@ class LogisticRegressionTrainer(BaseTrainer):
         target_col: str,
         feature_cols: list[str],
         year_col: str,
+        binary_col: str,
     ):
 
         self.param_grid = {
@@ -217,7 +245,7 @@ class LogisticRegressionTrainer(BaseTrainer):
             "classifier__penalty": ["l1", "l2", "elasticnet"],
         }
 
-        super().__init__(data, target_col, feature_cols, year_col)
+        super().__init__(data, target_col, feature_cols, year_col, binary_col)
         self.model = Pipeline(
             [
                 ("scaler", StandardScaler()),
