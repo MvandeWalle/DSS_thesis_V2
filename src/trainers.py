@@ -35,7 +35,7 @@ class BaseTrainer:
         self.model = None  # specified in child classes
         self.binary_col = binary_col
 
-        logger.info(f"{self.__class__.__name__} initialised.")
+        logger.debug(f"{self.__class__.__name__} initialised.")
 
     def _get_fold_data(self, years: list[int]):
         # Filter data to a list of years, return X and y
@@ -81,7 +81,7 @@ class BaseTrainer:
         # Predict probability and put the results in a DataFrame
         prob_val = self.model.predict_proba(X_val)[:, 1]
         val_results = pd.DataFrame(
-            {"Fold": fold_name, "y_true": y_val, "y_pred": prob_val}
+            {"Model": self.model.__class__.__name__, "Fold": fold_name, "y_true": y_val, "y_pred": prob_val}
         )
 
         if self.binary_col is not None:
@@ -103,7 +103,7 @@ class BaseTrainer:
             best_params_per_fold.append(params_dict)
             logger.debug(f"{fold_name} was completed.")
         self.best_params_per_fold = pd.concat(best_params_per_fold)
-        logger.info(
+        logger.debug(
             f"Evaluation metrics per fold for {self.model.__class__.__name__}: \n {self.best_params_per_fold}"
         )
         return pd.concat(val_results), self.best_params_per_fold
@@ -165,6 +165,11 @@ class DummyTrainer(BaseTrainer):
         val_results = pd.DataFrame(
             {"y_true": y_val, "y_pred": prob_val, "Fold": fold_name}
         )
+
+        # Add binary labels for numeric target evaluation
+        if self.binary_col is not None:
+            binary_data = self.data[self.data[self.year_col].isin(fold["val"])]
+            val_results["y_true_binary"] = binary_data[self.binary_col]
 
         # Empty params since there's nothing to tune
         params_results = pd.DataFrame([{"Fold": fold_name}])
@@ -301,7 +306,7 @@ if __name__ == "__main__":
     ]:
         logger.debug(f"Running {TrainerClass.__name__}...")
         model = TrainerClass(
-            data=df, target_col="binary_wf", feature_cols=fc, year_col="year"
+            data=df, target_col="binary_wf", feature_cols=fc, year_col="year", binary_col="binary_wf"
         )
 
         # Train the model
