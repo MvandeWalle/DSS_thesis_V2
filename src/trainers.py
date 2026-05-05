@@ -81,6 +81,7 @@ class BaseTrainer:
             best_params_per_fold.append(params_dict)
             logger.debug(f"{fold_name} was completed.")
         self.best_params_per_fold = pd.concat(best_params_per_fold)
+        logger.info(f"Evaluation metrics per fold for {self.model.__class__.__name__}: \n {self.best_params_per_fold}")
         return pd.concat(val_results), self.best_params_per_fold
 
     def train_final(self, testing_data: pd.DataFrame):
