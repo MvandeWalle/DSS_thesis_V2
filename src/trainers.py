@@ -7,6 +7,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, TimeSeriesSplit
+import warnings
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -89,7 +91,12 @@ class BaseTrainer:
             prob_val = all_probs[:, 1]
 
         val_results = pd.DataFrame(
-            {"Model": self.model.__class__.__name__, "Fold": fold_name, "y_true": y_val, "y_pred": prob_val}
+            {
+                "Model": self.model.__class__.__name__,
+                "Fold": fold_name,
+                "y_true": y_val,
+                "y_pred": prob_val,
+            }
         )
 
         if self.binary_col is not None:
@@ -151,8 +158,7 @@ class BaseTrainer:
         final_results = pd.DataFrame({"y_true": y_test, "y_pred": prob})
 
         if self.target_col != "binary_wf":
-            binary_data = testing_data[testing_data[self.year_col].isin([2024, 2025])]
-            final_results["y_true_binary"] = binary_data[self.binary_col]
+            final_results["y_true_binary"] = testing_data[self.binary_col]
 
         return final_results
 
@@ -213,8 +219,7 @@ class DummyTrainer(BaseTrainer):
         final_results = pd.DataFrame({"y_true": y_test, "y_pred": prob})
 
         if self.target_col != "binary_wf":
-            binary_data = testing_data[testing_data[self.year_col].isin([2024, 2025])]
-            final_results["y_true_binary"] = binary_data[self.binary_col]
+            final_results["y_true_binary"] = testing_data[self.binary_col]
 
         return final_results
 
@@ -274,7 +279,7 @@ class LogisticRegressionTrainer(BaseTrainer):
         self.param_grid = {
             "classifier__C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
             "classifier__class_weight": ["balanced", None],
-            "classifier__penalty": ["l1", "l2", "elasticnet"],
+            "classifier__l1_ratio": [0, 0.5, 1],  # 0 = L2, 0.5 = elasticnet, 1 = L1
         }
 
         super().__init__(data, target_col, feature_cols, year_col, binary_col)
@@ -293,14 +298,19 @@ class LogisticRegressionTrainer(BaseTrainer):
         )
 
     def _tune_hyperparameters(self, X_train, y_train):
-        search = GridSearchCV(
-            estimator=self.model,
-            param_grid=self.param_grid,
-            n_jobs=-1,
-            scoring="average_precision",
-            cv=TimeSeriesSplit(n_splits=3),
-        )
-        search.fit(X_train, y_train)
+        # During the GridSeach not all configurations converge and creates many ConvergenceWarnings, therefore these warnings will be catched.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=ConvergenceWarning)
+
+            search = GridSearchCV(
+                estimator=self.model,
+                param_grid=self.param_grid,
+                n_jobs=-1,
+                scoring="average_precision",
+                cv=TimeSeriesSplit(n_splits=3),
+            )
+            search.fit(X_train, y_train)
+
         self.model = search.best_estimator_
         return search.best_params_
 
@@ -333,7 +343,11 @@ if __name__ == "__main__":
     ]:
         logger.debug(f"Running {TrainerClass.__name__}...")
         model = TrainerClass(
-            data=df, target_col="binary_wf", feature_cols=fc, year_col="year", binary_col="binary_wf"
+            data=df,
+            target_col="binary_wf",
+            feature_cols=fc,
+            year_col="year",
+            binary_col="binary_wf",
         )
 
         # Train the model
