@@ -52,27 +52,27 @@ def main():
         output_folder="data/processed",
     )
 
-    current_dataset = example_data
+    current_dataset = train_data
 
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
     folds = Splitter(current_dataset, year_col="year")
 
     ## Create a list of relevant features
-    features = train_data.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
+    features = current_dataset.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
     # Train and evaluate model
     validation_output = pd.DataFrame()
     test_output = []
     for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
         models = [
-                DummyTrainer,
-                RandomForestTrainer,
-                XGBoostTrainer,
-                # LogisticRegressionTrainer,
-            ]
+            DummyTrainer,
+            RandomForestTrainer,
+            XGBoostTrainer,
+            LogisticRegressionTrainer,
+        ]
         if (target != "binary_wf") and (LogisticRegressionTrainer in models):
-            models = models.remove(LogisticRegressionTrainer)
+            models.remove(LogisticRegressionTrainer)
 
         for TrainerClass in models:
             model_trainer = TrainerClass(
@@ -98,7 +98,9 @@ def main():
 
             # Predict on the test set
             output_per_model = model_trainer.train_final(testing_data=test_data)
-            evaluation_per_model = evaluate_final(output_per_model, target_type=target, model_name=TrainerClass.__name__)
+            evaluation_per_model = evaluate_final(
+                output_per_model, target_type=target, model_name=TrainerClass.__name__
+            )
 
             test_output.append(evaluation_per_model)
 
@@ -106,8 +108,7 @@ def main():
 
     logger.info(f"The validation output per fold per model: \n {validation_output}")
     logger.info(f"The test output per model: \n {test_output}")
-  
-    
+
     # Evaluate model_selection
 
     # Evaluate features
