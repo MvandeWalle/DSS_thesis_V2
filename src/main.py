@@ -54,7 +54,7 @@ def main():
         output_folder="data/processed",
     )
 
-    current_dataset = train_data
+    current_dataset = example_data
 
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
@@ -128,16 +128,17 @@ def main():
 
                 shap_output = shaped.summarise_shap(decimal=4)
 
+                col_name = f"{TrainerClass.__name__}_{target}"
+                shap_output = shap_output.rename(columns={"mean_abs_shap": col_name})
+
                 if shap_df is None:
                     shap_df = shap_output
-                    shap_df = shap_df.rename(
-                        columns={"mean_abs_shap": f"{TrainerClass.__name__}_{target}"}
-                    )
-
                 else:
-                    shap_df[f"{TrainerClass.__name__}_{target}"] = shap_output[
-                        "mean_abs_shap"
-                    ]
+                    shap_df = shap_df.merge(
+                        shap_output[["feature", col_name]],
+                        on="feature",
+                        how="left"
+                    )
 
     test_output = pd.DataFrame(test_output)
 
@@ -146,6 +147,8 @@ def main():
     logger.debug(f"The SHAP values per model are: \n {shap_df}")
     shap_cols = shap_df.columns.drop(["group", "feature"])
     grouped_shap_df = shap_df.groupby("group")[shap_cols].mean().round(4)
+    grouped_shap_df["overall_mean"] = grouped_shap_df.mean(axis=1)
+    grouped_shap_df = grouped_shap_df.sort_values("overall_mean", ascending=False)
     logger.info(
         f"The SHAP values per model per feature group are: \n {grouped_shap_df}"
     )

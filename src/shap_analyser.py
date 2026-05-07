@@ -1,12 +1,9 @@
 import shap
 import pandas as pd
 from splitter import Splitter
-from trainers import RandomForestTrainer, XGBoostTrainer, LogisticRegressionTrainer
+from trainers import XGBoostTrainer
 import logging
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +127,7 @@ class SHAPAnalyser:
         Returns
         -------
         pd.DataFrame
-            DataFrame with columns ``["group", "feature", "mean_abs_shap"]``,
-            sorted by ``mean_abs_shap`` in descending order.
+            DataFrame with columns ``["group", "feature", "mean_abs_shap"]``
 
         Examples
         --------
@@ -155,7 +151,7 @@ class SHAPAnalyser:
         if decimal is not None:
             reordered_shap = reordered_shap.round(decimal)
 
-        reordered_shap = reordered_shap.sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
+        reordered_shap = reordered_shap.reset_index(drop=True)
 
         return reordered_shap
 

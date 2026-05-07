@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
 from splitter import Splitter
-from trainers import DummyTrainer, RandomForestTrainer, XGBoostTrainer, LogisticRegressionTrainer
+from trainers import RandomForestTrainer
 
 
 class Evaluator:
@@ -56,6 +56,7 @@ class Evaluator:
 
         return output
 
+
 def evaluate_final(test_results, target_type, model_name):
     if target_type == "numeric_wf":
         y_true = test_results["y_true_binary"]
@@ -77,21 +78,18 @@ def evaluate_final(test_results, target_type, model_name):
     return eval_metrics
 
 
-
-
-
 if __name__ == "__main__":
     data = pd.read_csv("data/processed/example_dataset.csv")
     folds = Splitter(data, year_col="year")
     features = data.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
-    for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]): 
-        rft = DummyTrainer(
+    for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
+        rft = RandomForestTrainer(
             data=data,
             target_col=target,
             feature_cols=features,
             year_col="year",
-            binary_col=bi_col
+            binary_col=bi_col,
         )
 
         val, pms = rft.run(folds=folds)
