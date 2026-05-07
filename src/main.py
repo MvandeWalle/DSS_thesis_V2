@@ -14,6 +14,8 @@ from trainers import (
     XGBoostTrainer,
 )
 
+from shap_analyser import SHAPAnalyser
+
 from evaluator import Evaluator, evaluate_final
 
 logging.basicConfig(
@@ -61,9 +63,21 @@ def main():
     ## Create a list of relevant features
     features = current_dataset.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
+    calendar_features = [
+        "holiday_NL",
+        "workday",
+        "vacation_NL_North",
+        "vacation_NL_Central",
+        "vacation_NL_South",
+        "vacation_BE",
+        "vacation_GE",
+    ]
+
     # Train and evaluate model
     validation_output = pd.DataFrame()
     test_output = []
+    shap_df = None
+
     for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
         models = [
             DummyTrainer,
@@ -104,10 +118,37 @@ def main():
 
             test_output.append(evaluation_per_model)
 
+            if TrainerClass.__name__ != "DummyTrainer":
+                shaped = SHAPAnalyser(
+                    model=model_trainer.model,
+                    data=test_data,
+                    feature_names=features,
+                    calendar_features=calendar_features,
+                )
+
+                shap_output = shaped.summarise_shap(decimal=4)
+
+                if shap_df is None:
+                    shap_df = shap_output
+                    shap_df = shap_df.rename(
+                        columns={"mean_abs_shap": f"{TrainerClass.__name__}_{target}"}
+                    )
+
+                else:
+                    shap_df[f"{TrainerClass.__name__}_{target}"] = shap_output[
+                        "mean_abs_shap"
+                    ]
+
     test_output = pd.DataFrame(test_output)
 
-    logger.info(f"The validation output per fold per model: \n {validation_output}")
+    logger.debug(f"The validation output per fold per model: \n {validation_output}")
     logger.info(f"The test output per model: \n {test_output}")
+    logger.debug(f"The SHAP values per model are: \n {shap_df}")
+    shap_cols = shap_df.columns.drop(["group", "feature"])
+    grouped_shap_df = shap_df.groupby("group")[shap_cols].mean().round(4)
+    logger.info(
+        f"The SHAP values per model per feature group are: \n {grouped_shap_df}"
+    )
 
     # Evaluate model_selection
 
