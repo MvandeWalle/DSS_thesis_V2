@@ -10,20 +10,24 @@ def wind_direction_converter(degrees: int):
 
     Parameters
     ----------
-    degrees : a wind vector in degrees, corresponding to the degrees on a
-    compass (360=north; 90=east; 180=south; 270=west; 0=calm/variable).
+    degrees : int
+        A wind vector in degrees, corresponding to the degrees on a compass (360=north; 90=east; 180=south; 270=west; 0=calm/variable).
 
     Returns
     -------
-    north, east, south, west : proportions in every wind direction.
+    north : float
+        Proportion of wind in the northern direction.
+    east : float
+        Proportion of wind in the eastern direction.
+    south : float
+        Proportion of wind in the southern direction.
+    west : float
+        Proportion of wind in the western direction.
 
-    Example
-    -----
-    The value 45 (north-east) would return the following:
-    north : 0.5
-    east : 0.5
-    south : 0
-    west: 0
+    Examples
+    --------
+    >>> wind_direction_converter(degrees = 45)
+    (0.5, 0.5, 0, 0)
     """
 
     north = 0
@@ -59,22 +63,32 @@ def rolling_windows(
 
     Parameters
     ----------
-    data : a pandas DataFrame.
+    data : pd.DataFrame
+        Dataset that is used for the summary statistics
 
-    method : a string mentioning 'mean' or 'sum'.
+    method : str
+        A string mentioning 'mean' or 'sum'.
 
-    columns : a list of column names from the corresponding DataFrame.
+    columns : list[str]
+        A list of column names from the corresponding DataFrame.
 
-    length : a list containing different values for the length of the
-    sliding windows.
+    length : list[int]
+        A list containing different values for the length of the sliding windows.
 
-    decimal : an integer to mention how many decimals the new columns should
-    have
+    decimal : int
+        How many decimals the new columns should have.
 
     Returns
     -------
-    data : modified version of the input DataFrame. New columns have
-    been added, which contain summary statistics over sliding windows."""
+    data : pd.DataFrame
+        Modified version of the input DataFrame: new columns which contain summary statistics over sliding windows have been added.
+        
+    Raises
+    ------
+    ValueError
+        If ``method`` is not ``'mean'`` or ``'sum'``.    
+        
+    """
 
     allowed_methods = ["mean", "sum"]
     if method not in allowed_methods:
@@ -99,23 +113,33 @@ def rolling_windows(
     return data
 
 
-class WeatherPrep():
-    """This class prepares the weather data"""
+class WeatherPrep:
+    """Loads, cleans and engineers features from raw KNMI weather data.
+
+    Designed to be used sequentially: initialise with a data path,
+    call ``clean_data()`` to validate and rename columns, then
+    ``feature_engineering()`` to add derived features based on summary statistics over sliding windows, and finally ``write_file()`` to save the processed dataset.
+
+    Attributes
+    ----------
+    data : pd.DataFrame
+        The raw KNMI weather dataset, modified in place by each method.
+    """
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
         """Initialise class, configure logger and load the data.
 
         Parameters
         ----------
-        data_path : path to the dataset (.csv or .txt).
+        data_path : str
+            Path to the dataset (.csv or .txt).
 
-        separator : choose the separator in the dataset (comma or semicolon). Default is ','.
+        separator : str, optional
+            Choose the separator in the dataset (comma or semicolon). Default is ','.
 
-        skip_rows : if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
+        skip_rows : int, optional
+            If the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
 
-        New attributes
-        --------------
-        data : weather dataset is loaded into the class attributes.
         """
 
         logger.debug("The process of data preparation was started.")
@@ -126,6 +150,29 @@ class WeatherPrep():
         logger.debug(f"WeatherPrep is constructed, data shape is {self.data.shape}.")
 
     def clean_data(self):
+        """Cleans the raw weather dataset in place.
+
+        This function removes unnecessary columns and renames the remaining columns. It checks if all necessary columns are in the dataset and if there are no missing values. The date column is converted to datetime64 format.
+
+        Returns
+        -------
+        None
+            Modifies ``self.data`` in place.
+
+        Raises
+        ------
+        NameError
+            If not all necessary columns are in the dataset.
+
+        ValueError
+            If there are missing values in the dataset.
+
+        Examples
+        --------
+        >>> wp = WeatherPrep(data_path="data/raw/weather_data_original.txt", separator=",", skip_rows=22)
+        >>> wp.clean_data()
+        """
+
         # Removing trailing space in column names.
         self.data = self.data.rename(columns=lambda x: x.strip())
 
@@ -290,6 +337,26 @@ class WeatherPrep():
         return self.data
 
     def write_file(self, folder: str):
+        """Writes weather dataset to a .csv file.
+
+        Parameters
+        ----------
+        folder : str
+            Path to the folder where the .csv will be saved.
+
+        Returns
+        -------
+        datapath : str
+            The complete path of the saved file.
+
+        Examples
+        --------
+        >>> wp = WeatherPrep("weather.csv", separator=",", skip_rows=22)
+        >>> wp.clean_data()
+        >>> wp.write_file(folder = "data/processed")
+        "data/processed/weather_processed.csv"
+
+        """
         datapath = f"{folder}/weather_data_processed.csv"
         self.data.to_csv(datapath, sep=",", index=False)
         logger.debug(
@@ -298,23 +365,33 @@ class WeatherPrep():
         return datapath
 
 
-class WildfirePrep():
-    """This class prepares the wildfire data"""
+class WildfirePrep:
+    """Loads and cleans features from raw wildfire dataset.
+
+    Designed to be used sequentially: initialise with a data path,
+    call ``clean_data()`` to format the date column and filter it, then
+    ``feature_engineering()`` to create a binary and a numeric wildfire column, and finally
+    ``write_file()`` to save the processed dataset.
+
+    Attributes
+    ----------
+    data : pd.DataFrame
+        The wildfire dataset, modified in place by each method.
+    """
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
-        """Initialise class, configure logger and load the data.
+        """Initialise class and load the data.
 
         Parameters
         ----------
-        data_path : path to the dataset (.csv or .txt).
+        data_path : str
+            Path to the dataset (.csv or .txt).
 
-        separator : choose the separator in the dataset (comma or semicolon). Default is ','.
+        separator : str, optional
+            Choose the separator in the dataset (comma or semicolon). Default is ','.
 
-        skip_rows : if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
-
-        New attributes
-        --------------
-        data : wildfire dataset is loaded into the class attributes.
+        skip_rows : int, optional
+            if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
         """
 
         logger.debug("The process of data preparation was started.")
@@ -325,6 +402,21 @@ class WildfirePrep():
         logger.debug(f"WildfirePrep is constructed, data shape is {self.data.shape}.")
 
     def clean_data(self):
+        """Cleans the raw wildfire dataset in place.
+
+        This function renames the date column and formats it to datetime64. It filters for dates between 2011 and 2025 and orders the dataset ascending based on the date column.
+
+        Returns
+        -------
+        None
+            Modifies ``self.data`` in place.
+
+        Examples
+        --------
+        >>> wp = WildfirePrep(data_path="data/raw/wildfire_data.csv", separator=";", skip_rows=0)
+        >>> wp.clean_data()
+        """
+
         logger.debug("Wildfire data cleaning initiated.")
 
         # Change date format in every dataset, so they have the same format for merging
@@ -340,6 +432,22 @@ class WildfirePrep():
         logger.debug(f"WildfirePrep: data is cleaned. Shape is {self.data.shape}")
 
     def feature_engineering(self):
+        """Creates two different wildfires columns.
+
+        One binary wildfire column, indicating if none (0) or at least one wildfire happened (1) on that specific date. One numeric wildfire column, indicating how many wildfires happened on that specific date (0 to 5).
+
+        Returns
+        -------
+        self.wildfire_dates : pd.DataFrame
+            New DataFrame with two wildfire columns: binary-coded and numeric-coded.
+
+        Examples
+        --------
+        >>> wp = WildfirePrep(data_path="data/raw/wildfire_data.csv", separator=";", skip_rows=0)
+        >>> wp.clean_data()
+        >>> wp.feature_engineering()
+        """
+
         # Obtain the wildfire counts per date
         self.wildfire_dates = (
             self.data.groupby("date").size().reset_index(name="numeric_wf")
@@ -351,6 +459,27 @@ class WildfirePrep():
         return self.wildfire_dates
 
     def write_file(self, folder: str):
+        """Writes wildfire dataset to a .csv file.
+
+        Parameters
+        ----------
+        folder : str
+            Path to the folder where the .csv will be saved.
+
+        Returns
+        -------
+        datapath : str
+            The complete path of the saved file.
+
+        Examples
+        --------
+        >>> wp = WildfirePrep(data_path="data/raw/wildfire_data.csv", separator=";", skip_rows=0)
+        >>> wp.clean_data()
+        >>> wp.write_file(folder = "data/processed")
+        "data/processed/wildfire_processed.csv"
+
+        """
+
         output_datapath = f"{folder}/wildfire_processed.csv"
 
         self.wildfire_dates.to_csv(output_datapath, sep=",", index=False)
@@ -361,23 +490,33 @@ class WildfirePrep():
         return output_datapath
 
 
-class CalendarPrep():
-    """This class prepares the calendar data"""
+class CalendarPrep:
+    """Loads, cleans and engineers features from raw calendar dataset.
+
+    Designed to be used sequentially: initialise with a data path,
+    call ``clean_data()`` to rename and format columns, and
+    ``write_file()`` to save the processed dataset.
+
+    Attributes
+    ----------
+    data : pd.DataFrame
+        The calendar dataset, modified in place by each method.
+    """
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
         """Initialise class and load the data.
 
         Parameters
         ----------
-        data_path : path to the dataset (.csv or .txt).
+        data_path : str
+            Path to the dataset (.csv or .txt).
 
-        separator : choose the separator in the dataset (comma or semicolon). Default is ','.
+        separator : str, optional
+            Choose the separator in the dataset (comma or semicolon). Default is ','.
 
-        skip_rows : if the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
+        skip_rows : int, optional
+            If the file contains metadata before the dataset itself, mention how many rows so these can be skipped when reading the file. Default is 0.
 
-        New attributes
-        --------------
-        data : calendar dataset is loaded into the class attributes.
         """
 
         logger.debug("The process of data preparation was started.")
@@ -389,6 +528,21 @@ class CalendarPrep():
         logger.debug(f"CalendarPrep is constructed, data shape is {self.data.shape}.")
 
     def clean_data(self):
+        """Cleans the raw calendar dataset in place.
+
+        This function drops irrelevant columns and renames the remaining ones. Date format is converted to datetime64. Most columns contain 1 for some observations (indicating True) and missing values in those columns are filled with 0 (indicating False). Afterwards also converted to integer format.
+
+        Returns
+        -------
+        None
+            Modifies ``self.data`` in place.
+
+        Examples
+        --------
+        >>> cp = CalendarPrep(data_path="data/raw/calendar_data.csv", separator=";", skip_rows=0)
+        >>> cp.clean_data()
+        """
+
         logger.debug("CalendarPrep: data cleaning initiated")
 
         # Change date format in every dataset, so they have the same format for merging
@@ -441,6 +595,27 @@ class CalendarPrep():
         logger.debug(f"CalendarPrep: data is cleaned. Shape is {self.data.shape}.")
 
     def write_file(self, folder: str):
+        """Writes calendar dataset to a .csv file.
+
+        Parameters
+        ----------
+        folder : str
+            Path to the folder where the .csv will be saved.
+
+        Returns
+        -------
+        datapath : str
+            The complete path of the saved file.
+
+        Examples
+        --------
+        >>> cp = CalendarPrep(data_path="data/raw/calendar_data.csv", separator=";", skip_rows=0)
+        >>> cp.clean_data()
+        >>> cp.write_file(folder = "data/processed")
+        "data/processed/calendar_processed.csv"
+
+        """
+
         datapath = f"{folder}/calendar_data_processed.csv"
         self.data.to_csv(datapath, sep=",", index=False)
         logger.debug(
@@ -455,7 +630,7 @@ def DataMerger(
     wildfire_path: str,
     output_folder: str,
 ):
-    """Merge processed weather, calendar, and wildfire datasets and save splits.
+    """Merge processed weather, calendar, and wildfire datasets.
 
     Loads the three processed datasets, validates their structure, and
     merges them on the ``date`` column. The wildfire target columns are
@@ -479,7 +654,12 @@ def DataMerger(
 
     Returns
     -------
-    Three datasets: example, train, and test. These are also written to csv file.
+    example_data : pd.DataFrame
+        Rows from 2011 to 2015, used during development to run the code quicker.
+    train_data : pd.DataFrame
+        Rows from 2011 to 2023, used for model training and validation.
+    test_data : pd.DataFrame
+        Rows from 2024 to 2025, used for out-of-sample evaluation.
 
 
     Raises
@@ -506,6 +686,7 @@ def DataMerger(
     calendar = pd.read_csv(calendar_path)
     wildfire = pd.read_csv(wildfire_path)
 
+    # Check if each dataset contains the 'date' column
     for name, df in {
         "weather": weather,
         "calendar": calendar,
@@ -514,7 +695,11 @@ def DataMerger(
         if "date" not in df.columns:
             raise KeyError(f"{name} dataset missing 'date' column.")
 
-        # Not really necessary for wildfire, but easier to keep one loop for everything.
+    # Check if there are any duplicate dates
+    for name, df in {
+        "weather": weather,
+        "calendar": calendar,
+    }.items():
         if df["date"].duplicated().any():
             raise ValueError(f"{name} dataset contains duplicate dates.")
 
