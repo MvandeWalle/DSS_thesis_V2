@@ -127,7 +127,7 @@ class WeatherPrep:
     """
 
     def __init__(self, data_path: str, separator: str = ",", skip_rows: int = 0):
-        """Initialise class, configure logger and load the data.
+        """Initialise class and load the data.
 
         Parameters
         ----------

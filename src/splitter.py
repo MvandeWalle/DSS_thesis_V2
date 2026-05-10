@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 
 def Splitter(data: pd.DataFrame, year_col: str = "year"):
-    """Split a time-series DataFrame into incremental train/val/test folds.
+    """Split a time-series DataFrame into incremental training and validation folds.
 
     Each fold adds one year to the training set, with a fixed validation
     window of one year and a fixed test window of the year immediately

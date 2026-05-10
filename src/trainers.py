@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 class BaseTrainer:
+    """Base class for training different models.
+
+    Designed to be used sequentially: initialise with a pandas DataFrame, train on multiple folds to find the best parameters, and fit the final model on all data with the best parameters.
+
+    Attributes
+    ----------
+    data : pd.DataFrame
+        Dataset containing weather, wildfire and calendar features,  which is modified in place
+
+    """
+
     def __init__(
         self,
         data: pd.DataFrame,
@@ -30,6 +41,25 @@ class BaseTrainer:
         year_col: str,
         binary_col: str = None,
     ):
+        """Initialise class and load the data.
+        
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Dataset containing weather, wildfire and calendar features.
+
+        target_col : str
+            The column that should be used as target variable: either binary_wf or numeric_wf.
+
+        feature_cols : list[str]
+            List of column names which should be used to train the model.
+
+        year_col : str
+            The name of the column that contains year.
+
+        binary_col : str, default = None
+            If the target column is numeric, the binary target is used to verify by using the evaluation metrics.
+        """
         self.data = data
         self.target_col = target_col
         self.feature_cols = feature_cols
@@ -40,6 +70,23 @@ class BaseTrainer:
         logger.debug(f"{self.__class__.__name__} initialised.")
 
     def _get_fold_data(self, years: list[int]):
+        """Internal function to extract fold data from self.data.
+        
+        Parameters
+        ----------
+        years : list[int]
+            List of years used to filter the dataset.
+
+        Returns
+        -------
+        X : pd.DataFrame
+            Dataset that has been filtered for years and relevant features.
+
+        y : pd.DataFrame
+            Dataset that has been filtered for years and target column.
+
+
+        """
         # Filter data to a list of years, return X and y
         data = self.data[self.data[self.year_col].isin(years)]
         X = data[self.feature_cols]
@@ -47,6 +94,22 @@ class BaseTrainer:
         return X, y
 
     def _tune_hyperparameters(self, X_train, y_train):
+        """ Internal function to find the optimal model parameters.
+
+        Parameters
+        ----------
+        X_train : pd.DataFrame
+            Feature columns for that fold.
+
+        y_train: pd.DataFrame
+            Target column for that fold.
+
+        Returns
+        -------
+        search.best_params_ : dict
+            Best parameters for that fold.
+
+        """
 
         # In _tune_hyperparameters, before creating the search:
         labels = sorted(y_train.unique())
@@ -72,6 +135,18 @@ class BaseTrainer:
         return search.best_params_  # dictionary
 
     def train_fold(self, fold_name: str, fold: dict):
+        """Finds parameters and predicts probability for one fold.
+        
+        Uses internal functions to get fold data and tune parameters. Subsequently predicts the probability and summarises those in case of a numeric variable: the probability of 0 wildfire occurring versus 1 or more wildfires occurring. This function called externally, but is mainly used internally.
+
+        Parameters
+        ----------
+        fold_name : str
+
+        fold : dict
+            Dictionary with lists of years with "train" and "val" as keys.
+
+        """
 
         # Takes one fold dict from Splitter, fits the model, returns predictions
         X_train, y_train = self._get_fold_data(fold["train"])
@@ -124,6 +199,11 @@ class BaseTrainer:
         return pd.concat(val_results), self.best_params_per_fold
 
     def train_final(self, testing_data: pd.DataFrame):
+        """Fits the model using the best parameters and runs it on the testing data.
+        
+        
+        """
+
         # Define the features and target columns
         ## Training data
         X_train = self.data[self.feature_cols]
