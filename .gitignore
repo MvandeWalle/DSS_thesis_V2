@@ -189,3 +189,17 @@ test.py
 data/processed/**
 test.ipynb
 data/processed/weather_data_processed.csv
+src/main.py
+data/output/shap_data.csv
+data/output/test_output.csv
+data/output/validation_output.csv
+data/output/test_predictions/test_pred_Dummy_binary_wf.csv
+data/output/test_predictions/test_pred_Dummy_numeric_wf.csv
+data/output/test_predictions/test_pred_LogisticRegression_binary_wf.csv
+data/output/test_predictions/test_pred_RandomForest_binary_wf.csv
+data/output/test_predictions/test_pred_RandomForest_numeric_wf.csv
+data/output/test_predictions/test_pred_XGBoost_binary_wf.csv
+data/output/test_predictions/test_pred_XGBoost_numeric_wf.csv
+figures/try_out_latex
+test2.ipynb
+test2.py

@@ -720,13 +720,14 @@ def DataMerger(
         raise ValueError("Merge resulted in empty dataset. Check date alignment.")
 
     dataset = dataset.merge(wildfire, how="left", on="date")
-    logger.debug(
-        f"Merger: the three datasets are merged and the current dataset has shape {dataset.shape}."
-    )
 
     # Add a year column for easier splitting later
     dataset["date"] = pd.to_datetime(dataset["date"], format="%Y-%m-%d")
     dataset["year"] = dataset["date"].dt.year
+
+    logger.debug(
+        f"Merger: the three datasets are merged and the year column is added. Current dataset has shape {dataset.shape}."
+    )
 
     # Fill the NaN values, because on those dates no wildfires occurred.
     dataset["numeric_wf"] = dataset["numeric_wf"].fillna(0).astype(int)
@@ -765,7 +766,7 @@ def DataMerger(
         f"Merger: test dataset saved at {test_path} with shape {test_data.shape}."
     )
 
-    logger.info(f"Data Merger completed. Datasets are saved in {output_folder}")
+    logger.info(f"Data Merger completed. Dataset is saved in {output_folder}")
 
     return example_data, train_data, test_data
 
