@@ -1,7 +1,7 @@
 import shap
 import pandas as pd
 from splitter import Splitter
-from trainers import XGBoostTrainer
+from trainers import RandomForestTrainer, XGBoostTrainer
 import logging
 
 
@@ -111,7 +111,7 @@ class SHAPAnalyser:
         values_df = pd.DataFrame(shap_values, columns=self.feature_names)
         return values_df
 
-    def summarise_shap(self, decimal: int = 5):
+    def summarise_shap(self, decimal: int = 5, save_raw_shap: bool = False, raw_shap_path: str = None):
         """Summarise SHAP values as mean absolute importance per feature.
 
         Calls ``_compute_shap_values`` internally, computes the mean
@@ -123,6 +123,13 @@ class SHAPAnalyser:
         decimal : int, optional
             Number of decimal places to round results to. If ``None``,
             no rounding is applied.
+        
+        save_raw_shap : bool, optional
+            If True, saves the raw SHAP values to a CSV file.
+
+        raw_shap_path : str, optional
+            Path to save the raw SHAP values (e.g., "data/output/shap_values_rf.csv").
+            Required if ``save_raw_shap=True``.
 
         Returns
         -------
@@ -132,11 +139,18 @@ class SHAPAnalyser:
         Examples
         --------
         >>> analyser = SHAPAnalyser(model, test_data, features, calendar_features)
-        >>> summary = analyser.summarise_shap(decimal=3)
+        >>> summary = analyser.summarise_shap(decimal=3, save_raw_shap=True, raw_shap_path="shap_values.csv")
         >>> print(summary.head())
         """
 
         values_df = self._compute_shap_values()
+
+        # Save raw SHAP values if requested
+        if save_raw_shap:
+            if raw_shap_path is None:
+                raise ValueError("raw_shap_path must be provided if save_raw_shap=True")
+            values_df.to_csv(raw_shap_path, index=False)
+
         # Calculate the absolute mean values for all observations from the same feature.
         mean_abs_shap = values_df.abs().mean(axis=0).reset_index()
         mean_abs_shap.columns = ["feature", "mean_abs_shap"]
@@ -146,9 +160,7 @@ class SHAPAnalyser:
 
         # Reorder dataset for clarity
         reordered_shap = mean_abs_shap.iloc[:, [2, 0, 1]]
-
         reordered_shap = reordered_shap.round(decimal)
-
         reordered_shap = reordered_shap.reset_index(drop=True)
 
         return reordered_shap
@@ -169,7 +181,7 @@ if __name__ == "__main__":
     ]
     features = train_data.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
 
-    model_trainer = XGBoostTrainer(
+    model_trainer = RandomForestTrainer(
         data=train_data,
         target_col="binary_wf",
         feature_cols=features,
@@ -186,5 +198,5 @@ if __name__ == "__main__":
         calendar_features=calendar_features,
     )
 
-    output = shaped.summarise_shap(decimal=3)
+    output = shaped.summarise_shap(decimal=3, save_raw_shap=True, raw_shap_path="data/output/example_raw_shap_values.csv")
     print(output.groupby("group")["mean_abs_shap"].mean().round(3))
