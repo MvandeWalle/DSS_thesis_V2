@@ -1,13 +1,11 @@
 # This script is used for the creation of tables and figures for the Results section
 # Imports
 import pandas as pd
-import numpy as np
 import matplotlib
 import shap
 
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Import the dataset 
 dataset = pd.read_csv("data/processed/train_dataset.csv")
