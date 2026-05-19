@@ -111,7 +111,7 @@ class SHAPAnalyser:
         values_df = pd.DataFrame(shap_values, columns=self.feature_names)
         return values_df
 
-    def summarise_shap(self, decimal: int = None):
+    def summarise_shap(self, decimal: int = 5):
         """Summarise SHAP values as mean absolute importance per feature.
 
         Calls ``_compute_shap_values`` internally, computes the mean
@@ -147,9 +147,7 @@ class SHAPAnalyser:
         # Reorder dataset for clarity
         reordered_shap = mean_abs_shap.iloc[:, [2, 0, 1]]
 
-        # A parameter to optionally limit the decimals
-        if decimal is not None:
-            reordered_shap = reordered_shap.round(decimal)
+        reordered_shap = reordered_shap.round(decimal)
 
         reordered_shap = reordered_shap.reset_index(drop=True)
 
