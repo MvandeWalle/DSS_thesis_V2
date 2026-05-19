@@ -135,7 +135,13 @@ def main():
                     calendar_features=calendar_features,
                 )
 
-                shap_output = shaped.summarise_shap(decimal=4)
+                # Save raw SHAP values for plotting later
+                shap_values_path = f"data/output/shap_values_{model_name}_{target_name}.csv"
+                shap_output = shaped.summarise_shap(
+                    decimal=4,
+                    save_raw_shap=True,
+                    raw_shap_path=shap_values_path,
+                )
 
                 col_name = f"{model_name}_{target_name}"
                 shap_output = shap_output.rename(columns={"mean_abs_shap": col_name})
