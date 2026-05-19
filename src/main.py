@@ -59,6 +59,7 @@ def main():
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
     folds = Splitter(current_dataset, year_col="year")
+    logger.debug(folds)
 
     ## Create a list of relevant features
     features = current_dataset.columns.drop(["date", "year", "binary_wf", "numeric_wf"])
@@ -85,6 +86,7 @@ def main():
             XGBoostTrainer,
             LogisticRegressionTrainer,
         ]
+
         if (target != "binary_wf") and (LogisticRegressionTrainer in models):
             models.remove(LogisticRegressionTrainer)
 
@@ -97,13 +99,16 @@ def main():
                 binary_col=bi_col,
             )
 
-            logger.info(f"{TrainerClass.__name__} with target {target} started.")
+            model_name = TrainerClass.__name__
+            model_name = model_name.replace("Trainer", "")
+            target_name = target.replace("_wf", "")
+            logger.info(f"{model_name} with {target_name} target started.")
 
             val, pms = model_trainer.run(folds)
             evaluation = Evaluator(
                 validation_results=val,
                 best_parameters=pms,
-                model=TrainerClass.__name__,
+                model=model_name,
                 target_type=target,
             )
             ev = evaluation.evaluate()
@@ -112,9 +117,13 @@ def main():
 
             # Predict on the test set
             output_per_model = model_trainer.train_final(testing_data=test_data)
+            output_per_model['date'] = test_data['date'].values
             evaluation_per_model = evaluate_final(
-                output_per_model, target_type=target, model_name=TrainerClass.__name__
+                output_per_model, target_type=target, model_name=model_name
             )
+            
+            output_name = f"data/output/test_predictions/test_pred_{model_name}_{target}.csv"
+            output_per_model.to_csv(output_name, index=False)
 
             test_output.append(evaluation_per_model)
 
@@ -128,7 +137,7 @@ def main():
 
                 shap_output = shaped.summarise_shap(decimal=4)
 
-                col_name = f"{TrainerClass.__name__}_{target}"
+                col_name = f"{model_name}_{target_name}"
                 shap_output = shap_output.rename(columns={"mean_abs_shap": col_name})
 
                 if shap_df is None:
@@ -139,6 +148,8 @@ def main():
                         on="feature",
                         how="left"
                     )
+                
+
 
     test_output = pd.DataFrame(test_output)
 
@@ -153,9 +164,10 @@ def main():
         f"The SHAP values per model per feature group are: \n {grouped_shap_df}"
     )
 
-    # Evaluate model_selection
-
-    # Evaluate features
+    # Save the values to a CSV file
+    validation_output.to_csv("data/output/validation_output.csv", index=False)
+    test_output.to_csv("data/output/test_output.csv", index=False)
+    shap_df.to_csv("data/output/shap_data.csv", index=False)
 
     # Log results
 
