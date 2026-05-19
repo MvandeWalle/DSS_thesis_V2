@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.metrics import average_precision_score, brier_score_loss, f1_score
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from splitter import Splitter
 from trainers import RandomForestTrainer
 
@@ -22,6 +22,7 @@ class Evaluator:
         self.best_parameters = best_parameters
         self.model_name = model
         self.target_type = target_type
+        self.target_name = target_type.replace("_wf", "")
 
     def evaluate_fold(self, fold_df: pd.DataFrame, fold_name: str = "empty"):
         if self.target_type == "numeric_wf":
@@ -29,17 +30,20 @@ class Evaluator:
         else:
             y_true = fold_df["y_true"]
 
-        auprc = average_precision_score(y_true=y_true, y_score=fold_df["y_pred"])
+        rocauc = roc_auc_score(y_true=y_true, y_score=fold_df["y_pred"])       
         brier = brier_score_loss(y_true=y_true, y_proba=fold_df["y_pred"])
-        f1 = f1_score(y_true=y_true, y_pred=fold_df["y_pred"].round())
+        auprc = average_precision_score(y_true=y_true, y_score=fold_df["y_pred"])
+
+
 
         eval_metrics = {
             "Model": self.model_name,
-            "Target type": self.target_type,
+            "Target type": self.target_name,
             "Fold": fold_name,
+            "ROC-AUC": round(rocauc, 3),
+            "Brier Score": round(brier, 3),                        
             "AUPRC": round(auprc, 3),
-            "Brier Score": round(brier, 3),
-            "F1-score": round(f1, 3),
+
         }
 
         return eval_metrics
@@ -63,16 +67,20 @@ def evaluate_final(test_results, target_type, model_name):
     else:
         y_true = test_results["y_true"]
 
+    rocauc = roc_auc_score(y_true=y_true, y_score=test_results["y_pred"])
+    brier = brier_score_loss(y_true=y_true, y_proba=test_results["y_pred"])    
     auprc = average_precision_score(y_true=y_true, y_score=test_results["y_pred"])
-    brier = brier_score_loss(y_true=y_true, y_proba=test_results["y_pred"])
-    f1 = f1_score(y_true=y_true, y_pred=test_results["y_pred"].round())
+
+
 
     eval_metrics = {
         "Model": model_name,
-        "Target type": target_type,
+        "Target type": target_type.replace("_wf", ""),
+        "ROC-AUC": round(rocauc, 3),
+        "Brier Score": round(brier, 3),                
         "AUPRC": round(auprc, 3),
-        "Brier Score": round(brier, 3),
-        "F1-score": round(f1, 3),
+
+
     }
 
     return eval_metrics
