@@ -480,7 +480,7 @@ class WildfirePrep:
 
         """
 
-        output_datapath = f"{folder}/wildfire_processed.csv"
+        output_datapath = f"{folder}/wildfire_data_processed.csv"
 
         self.wildfire_dates.to_csv(output_datapath, sep=",", index=False)
         logger.debug(
@@ -797,7 +797,7 @@ if __name__ == "__main__":
     example, train, test = DataMerger(
         weather_path="data/processed/weather_data_processed.csv",
         calendar_path="data/processed/calendar_data_processed.csv",
-        wildfire_path="data/processed/wildfire_processed.csv",
+        wildfire_path="data/processed/wildfire_data_processed.csv",
         output_folder="data/processed",
     )
 
