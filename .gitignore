@@ -186,7 +186,6 @@ test.py
 .DSS-venv/bin/python3.12
 
 # Folders
-data/processed/train_dataset.csv
 test.ipynb
 data/processed/weather_data_processed.csv
 src/main.py
