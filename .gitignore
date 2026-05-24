@@ -237,5 +237,5 @@ figures/plots/shap_plots/shap_summary_XGBoost_numeric.pdf
 figures/pred_prob_numeric.pdf
 figures/pred_prob_binary.pdf
 data/processed/calendar_data.csv
-data/processed/wildfire_data_processed.csv
+data/processed/wildfire_processed.csv
 data/processed/processed_wildfire.csv
