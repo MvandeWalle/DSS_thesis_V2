@@ -7,7 +7,7 @@ import shap
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
-# Import the dataset 
+# Import the dataset
 dataset = pd.read_csv("data/processed/train_dataset.csv")
 # Add a column with months
 dataset["month"] = pd.to_datetime(dataset["date"]).dt.month
@@ -27,6 +27,7 @@ months = [
 ]
 
 plt.rcParams.update({"font.size": 9})
+
 
 def monthly_plot():
     # Create plot with the distribution of wildfires per month
@@ -54,6 +55,7 @@ def monthly_plot():
 
     plt.show()
 
+
 def yearly_plot():
     # Create plot with the distribution of wildfires per month
 
@@ -77,12 +79,24 @@ def yearly_plot():
 
     plt.tight_layout()
     plt.savefig("figures/plots/yearly_count.pdf", format="pdf", bbox_inches="tight")
-    plt.show()    
+    plt.show()
+
 
 def weather_descriptives():
-    weather_data = dataset.groupby("month")[['tempDailyAvg', 'tempDailyMin', 'tempDailyMax', 'precipDailySum', 'airpresDailyAvg', 'humidDailyAvg', 'humidDailyMax', 'humidDailyMin']].mean()
+    weather_data = dataset.groupby("month")[
+        [
+            "tempDailyAvg",
+            "tempDailyMin",
+            "tempDailyMax",
+            "precipDailySum",
+            "airpresDailyAvg",
+            "humidDailyAvg",
+            "humidDailyMax",
+            "humidDailyMin",
+        ]
+    ].mean()
 
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(6,4))
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
     # Temperature
     axes[0].plot(weather_data.index, weather_data["tempDailyMin"], label="min temp")
     axes[0].plot(weather_data.index, weather_data["tempDailyAvg"], label="mean temp")
@@ -98,16 +112,18 @@ def weather_descriptives():
     axes[1].set_title("Precipitation per month")
     axes[1].set_ylabel("mm")
 
-
     for ax in axes:
         ax.set_xlabel("Month")
         ax.set_xticks(range(1, 13))
         ax.set_xticklabels(months, rotation=90, ha="center")
 
     plt.tight_layout()
-    plt.savefig("figures/plots/weather_descriptives.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig(
+        "figures/plots/weather_descriptives.pdf", format="pdf", bbox_inches="tight"
+    )
 
     plt.show()
+
 
 def shap_plots():
     # Load test data
@@ -132,15 +148,18 @@ def shap_plots():
             # Ensure SHAP values are in the correct format (numpy array)
             shap_values_array = shap_values.values
 
+            # --- CLEAN FIX: Wrap arrays into a SHAP Explanation Object ---
+            explanation = shap.Explanation(
+                values=shap_values_array,
+                data=X_test.values,
+                feature_names=list(feature_names),
+            )
+
             # --- Generate a Bar Plot (Feature Importance) ---
             plt.figure()
-            shap.summary_plot(
-                shap_values_array,
-                X_test,
-                feature_names=feature_names,
-                plot_type="bar",
-                show=False,
-            )
+            # This modern function automatically handles the data labels
+            shap.plots.bar(explanation, show=False)
+
             plt.title(f"SHAP Feature Importance: {model_name} ({target_name})")
             plt.tight_layout()
             plt.savefig(f"{plot_dir}/shap_bar_{model_name}_{target_name}.pdf")
@@ -148,15 +167,188 @@ def shap_plots():
 
             # --- Generate a Beeswarm Plot (Summary Plot) ---
             plt.figure()
-            shap.summary_plot(
-                shap_values_array,
-                X_test,
-                feature_names=feature_names,
-                show=False,
-            )
+            # The modern beeswarm plot also accepts the Explanation object
+            shap.plots.beeswarm(explanation, show=False)
+
             plt.title(f"SHAP Summary: {model_name} ({target_name})")
             plt.tight_layout()
             plt.savefig(f"{plot_dir}/shap_summary_{model_name}_{target_name}.pdf")
             plt.close()
 
-shap_plots()
+
+def prob_plot():
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+
+    models = ["RandomForest", "XGBoost", "LogisticRegression"]
+    targets = ["binary_wf", "numeric_wf"]
+
+    label_map = {
+        "RandomForest": "Random Forest",
+        "XGBoost": "XGBoost",
+        "LogisticRegression": "Logistic Regression",
+    }
+
+    # Collect valid combinations
+    combinations = []
+    for model in models:
+        for target in targets:
+            if model == "LogisticRegression" and target == "numeric_wf":
+                continue
+            combinations.append((model, target))
+
+    binary_combinations = [(m, t) for m, t in combinations if t == "binary_wf"]
+    numeric_combinations = [(m, t) for m, t in combinations if t == "numeric_wf"]
+
+    for combo_list, filename, target_label in [
+        (binary_combinations, "figures/pred_prob_binary.pdf", "Binary WF"),
+        (numeric_combinations, "figures/pred_prob_numeric.pdf", "Numeric WF"),
+    ]:
+        fig, axes = plt.subplots(
+            len(combo_list), 1, figsize=(6, 3 * len(combo_list)), sharex=False
+        )
+
+        # If only one subplot, axes is not a list — wrap it for consistency
+        if len(combo_list) == 1:
+            axes = [axes]
+
+        for ax, (model, target) in zip(axes, combo_list):
+            filepath = f"data/output/test_predictions/test_pred_{model}_{target}.csv"
+            df = pd.read_csv(filepath, parse_dates=["date"])
+
+            # Predicted probability line
+            ax.plot(
+                df["date"],
+                df["y_pred"],
+                color="#2c7bb6",
+                linewidth=1,
+                label="Predicted probability",
+                zorder=2,
+            )
+
+            # Actual wildfire days
+            if target == "numeric_wf":
+                fire_dates = df[df["y_true_binary"] == 1]["date"]
+            else:
+                fire_dates = df[df["y_true"] == 1]["date"]
+
+            ax.vlines(
+                fire_dates,
+                ymin=0,
+                ymax=0.1,
+                color="#d7191c",
+                linewidth=0.8,
+                alpha=0.6,
+                label="Wildfire observed",
+                zorder=3,
+            )
+
+            # Formatting
+            ax.set_title(
+                f"{label_map[model]} — {target_label}", loc="left", fontsize=10
+            )
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Predicted probability")
+            ax.set_ylim(0, 1)
+            ax.set_xlim(df["date"].min(), df["date"].max())
+            ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+            ax.legend(frameon=False, loc="upper left")
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+        plt.tight_layout()
+        plt.savefig(filename, format="pdf", bbox_inches="tight")
+        plt.show()
+
+
+def shap_table():
+    data = pd.read_csv("data/output/shap_data.csv")
+    data_per_group = data.groupby("group")[
+        [
+            "RandomForest_binary",
+            "RandomForest_numeric",
+            "XGBoost_binary",
+            "XGBoost_numeric",
+            "LogisticRegression_binary",
+        ]
+    ].sum()
+    data_per_group["Mean"] = data_per_group.mean(axis=1)
+    data_per_group["St. Dev."] = data_per_group.std(axis=1)
+    data_per_group = data_per_group.sort_values("Mean", ascending=False).T
+    data_per_group = data_per_group[["Daily weather", "Sliding window", "Calendar"]]
+
+    print(
+        data_per_group.to_latex(
+            index=True,
+            float_format="%.3f",  # 3 decimal places
+            caption="SHAP values for each group and model combination",
+            label="tab: SHAP model x group",
+        )
+    )
+    print(data_per_group)
+
+
+def summarized_model_comparison():
+    validation_output = pd.read_csv("data/output/validation_output.csv")
+    test_output = pd.read_csv("data/output/test_output.csv")
+
+    # Target type comparison
+    tt_val_comparison = validation_output[validation_output["Model"] != "Dummy"]
+    tt_val_comparison = (
+        tt_val_comparison.groupby("Target type")[["ROC-AUC", "AUPRC", "Brier Score"]]
+        .mean()
+        .round(3)
+    )
+    tt_test_comparison = test_output[test_output["Model"] != "Dummy"]
+    tt_test_comparison = (
+        tt_test_comparison.groupby("Target type")[["ROC-AUC", "AUPRC", "Brier Score"]]
+        .mean()
+        .round(3)
+    )
+
+    # Model type comparison
+    model_val_comparison = validation_output[validation_output["Model"] != "Dummy"]
+    model_val_comparison = (
+        model_val_comparison.groupby("Model")[["ROC-AUC", "AUPRC", "Brier Score"]]
+        .mean()
+        .round(3)
+    )
+    model_test_comparison = test_output[test_output["Model"] != "Dummy"]
+    model_test_comparison = (
+        model_test_comparison.groupby("Model")[["ROC-AUC", "AUPRC", "Brier Score"]]
+        .mean()
+        .round(3)
+    )
+
+    print(
+        model_val_comparison.to_latex(
+            index=True,
+            float_format="%.3f",  # 3 decimal places
+            caption="Model comparison with validation results",
+            label="tab: model validation",
+        )
+    )
+    print(
+        model_test_comparison.to_latex(
+            index=True,
+            float_format="%.3f",  # 3 decimal places
+            caption="Model comparison with test results",
+            label="tab: model test",
+        )
+    )
+
+def fold_table():
+    data = pd.read_csv("data/output/validation_output.csv")
+    data = data[data["Model"] != "Dummy"]
+    fold_data = data.groupby("Fold")[["ROC-AUC","AUPRC","Brier Score"]].mean().round(3)
+    print(fold_data.to_latex(
+            index=True,
+            float_format="%.3f",  # 3 decimal places
+            caption="Model comparison with test results",
+            label="tab: model test",
+        ))
+
+prob_plot()

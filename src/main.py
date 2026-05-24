@@ -54,7 +54,7 @@ def main():
         output_folder="data/processed",
     )
 
-    current_dataset = example_data
+    current_dataset = train_data
 
     # Split data
     ## Binary and numeric datasets have the same structure and the same dates, so the folds can be extracted from one, not from both.
