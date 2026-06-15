@@ -201,7 +201,34 @@ class BaseTrainer:
     def train_final(self, testing_data: pd.DataFrame):
         """Fits the model using the best parameters and runs it on the testing data.
         
+        Selects the most frequently chosen hyperparameters across all folds, fits the model on the complete training dataset, and predicts probabilities on the out-of-sample test set. For multiclass targets (``numeric_wf``), predicted probabilities for classes 1 and above are summed to produce a single probability of one or more wildfires occurring. Must be called after ``run()``.
         
+        Parameters
+        ----------
+        testing_data : pd.DataFrame
+            Out-of-sample test dataset (2024–2025) containing the same
+            feature columns as the training data, as well as the target
+            column.
+
+        Returns
+        -------
+        final_results : pd.DataFrame
+            DataFrame with columns ``["y_true", "y_pred"]`` and optionally
+            ``"y_true_binary"`` when ``target_col`` is not ``"binary_wf"``.
+
+        Raises
+        ------
+        RuntimeError
+            If ``train_final()`` is called before ``run()``, since
+            ``self.best_params_per_fold`` will not yet exist.
+
+        Examples
+        --------
+        >>> model = RandomForestTrainer(data=train_data, target_col="binary_wf",
+        ...                             feature_cols=features, year_col="year",
+        ...                             binary_col=None)
+        >>> model.run(folds=folds)
+        >>> results = model.train_final(testing_data=test_data)        
         """
 
         # Define the features and target columns
@@ -242,7 +269,7 @@ class BaseTrainer:
 
         return final_results
 
-
+# DummyTrainer to create a Dummy baseline to compare other models against
 class DummyTrainer(BaseTrainer):
     def __init__(
         self,
