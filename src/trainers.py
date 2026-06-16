@@ -12,7 +12,6 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
-    f1_score,
     log_loss,
     make_scorer,
 )
@@ -42,7 +41,7 @@ class BaseTrainer:
         binary_col: str = None,
     ):
         """Initialise class and load the data.
-        
+
         Parameters
         ----------
         data : pd.DataFrame
@@ -71,7 +70,7 @@ class BaseTrainer:
 
     def _get_fold_data(self, years: list[int]):
         """Internal function to extract fold data from self.data.
-        
+
         Parameters
         ----------
         years : list[int]
@@ -94,7 +93,7 @@ class BaseTrainer:
         return X, y
 
     def _tune_hyperparameters(self, X_train, y_train):
-        """ Internal function to find the optimal model parameters.
+        """Internal function to find the optimal model parameters.
 
         Parameters
         ----------
@@ -136,16 +135,27 @@ class BaseTrainer:
 
     def train_fold(self, fold_name: str, fold: dict):
         """Finds parameters and predicts probability for one fold.
-        
-        Uses internal functions to get fold data and tune parameters. Subsequently predicts the probability and summarises those in case of a numeric variable: the probability of 0 wildfire occurring versus 1 or more wildfires occurring. This function called externally, but is mainly used internally.
+
+        Uses internal functions to get fold data and tune parameters. Subsequently predicts the probability and summarises those in case of a numeric variable: the probability of 0 wildfire occurring versus 1 or more wildfires occurring. This function called externally, but is mainly used internally by ``run()``.
 
         Parameters
         ----------
         fold_name : str
-
+            Label for the current fold (e.g. ``"Fold_01"``), used to
+            identify results in the output DataFrames.
         fold : dict
-            Dictionary with lists of years with "train" and "val" as keys.
+            Dictionary with lists of years with ``"train"`` and ``"val"``
+            as keys, as produced by ``Splitter``.
 
+        Returns
+        -------
+        val_results : pd.DataFrame
+            DataFrame with columns ``["Model", "Fold", "y_true", "y_pred"]``
+            and optionally ``"y_true_binary"`` for numeric targets, containing
+            predicted probabilities and true labels for the validation year.
+        params_results : pd.DataFrame
+            Single-row DataFrame containing the fold name and best
+            hyperparameters selected during tuning for this fold.
         """
 
         # Takes one fold dict from Splitter, fits the model, returns predictions
@@ -184,6 +194,37 @@ class BaseTrainer:
         return val_results, params_results
 
     def run(self, folds: dict):
+        """Loops over all folds and collects validation results and best parameters.
+
+        Calls ``train_fold`` for each fold in ``folds``, collecting predicted
+        probabilities and best hyperparameters across all folds. After
+        completion, ``self.best_params_per_fold`` is set and ``train_final``
+        can be called.
+
+        Parameters
+        ----------
+        folds : dict of str to dict
+            Dictionary of folds as produced by ``Splitter``, where each key
+            is a fold label and each value is a dict with ``"train"`` and
+            ``"val"`` keys containing lists of years.
+
+        Returns
+        -------
+        val_results : pd.DataFrame
+            Concatenated validation results across all folds, with columns
+            ``["Model", "Fold", "y_true", "y_pred"]`` and optionally
+            ``"y_true_binary"``.
+        best_params_per_fold : pd.DataFrame
+            Concatenated best hyperparameters across all folds, with one
+            row per fold.
+
+        Examples
+        --------
+        >>> model = RandomForestTrainer(data=train_data, target_col="binary_wf",
+        ...                             feature_cols=features, year_col="year",
+        ...                             binary_col=None)
+        >>> val_results, best_params = model.run(folds=folds)"""
+
         # Loops over all folds and collects results
         val_results = []
         best_params_per_fold = []
@@ -200,9 +241,9 @@ class BaseTrainer:
 
     def train_final(self, testing_data: pd.DataFrame):
         """Fits the model using the best parameters and runs it on the testing data.
-        
+
         Selects the most frequently chosen hyperparameters across all folds, fits the model on the complete training dataset, and predicts probabilities on the out-of-sample test set. For multiclass targets (``numeric_wf``), predicted probabilities for classes 1 and above are summed to produce a single probability of one or more wildfires occurring. Must be called after ``run()``.
-        
+
         Parameters
         ----------
         testing_data : pd.DataFrame
@@ -228,7 +269,7 @@ class BaseTrainer:
         ...                             feature_cols=features, year_col="year",
         ...                             binary_col=None)
         >>> model.run(folds=folds)
-        >>> results = model.train_final(testing_data=test_data)        
+        >>> results = model.train_final(testing_data=test_data)
         """
 
         # Define the features and target columns
@@ -269,6 +310,7 @@ class BaseTrainer:
 
         return final_results
 
+
 # DummyTrainer to create a Dummy baseline to compare other models against
 class DummyTrainer(BaseTrainer):
     def __init__(
@@ -284,6 +326,8 @@ class DummyTrainer(BaseTrainer):
         self.model = DummyClassifier(random_state=2026, strategy="prior")
 
     def train_fold(self, fold_name: str, fold: dict):
+        # Overrides BaseTrainer.train_fold to skip hyperparameter tuning,
+        # since DummyClassifier has no hyperparameters to optimise.
         X_train, y_train = self._get_fold_data(fold["train"])
         X_val, y_val = self._get_fold_data(fold["val"])
 
@@ -306,6 +350,8 @@ class DummyTrainer(BaseTrainer):
         return val_results, params_results
 
     def train_final(self, testing_data: pd.DataFrame):
+        # Overrides BaseTrainer.train_final to skip set_params(),
+        # since DummyClassifier has no hyperparameters to set.
         if not hasattr(self, "best_params_per_fold"):
             raise RuntimeError("train_final() must be called after run().")
 
@@ -340,6 +386,8 @@ class RandomForestTrainer(BaseTrainer):
         year_col: str,
         binary_col: str,
     ):
+        # Extends BaseTrainer with a Random Forest classifier and its
+        # hyperparameter search space for n_estimators, max_depth and min_samples_leaf.
 
         self.param_grid = {
             "n_estimators": [100, 200, 300, 500],
@@ -362,6 +410,8 @@ class XGBoostTrainer(BaseTrainer):
         year_col: str,
         binary_col: str,
     ):
+        # Extends BaseTrainer with an XGBoost classifier and its
+        # hyperparameter search space for n_estimators, max_depth and learning_rate.
 
         self.param_grid = {
             "n_estimators": [100, 200, 300, 500],
@@ -382,6 +432,9 @@ class LogisticRegressionTrainer(BaseTrainer):
         year_col: str,
         binary_col: str,
     ):
+        # Extends BaseTrainer with a Logistic Regression classifier wrapped in a
+        # StandardScaler Pipeline. Features are scaled because LogReg is sensitive
+        # to differences in feature magnitude.
 
         self.param_grid = {
             "classifier__C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
@@ -405,7 +458,7 @@ class LogisticRegressionTrainer(BaseTrainer):
         )
 
     def _tune_hyperparameters(self, X_train, y_train):
-        # During the GridSeach not all configurations converge and creates many ConvergenceWarnings, therefore these warnings will be catched.
+        # During the GridSeach not all configurations converge, which creates many ConvergenceWarnings, and these warnings will be catched.
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
@@ -468,13 +521,11 @@ if __name__ == "__main__":
             y_true=output["y_true"], y_score=output["y_pred"]
         )
         brier = brier_score_loss(y_true=output["y_true"], y_proba=output["y_pred"])
-        f1 = f1_score(y_true=output["y_true"], y_pred=output["y_pred"].round())
 
         eval_metrics = {
             "Model": TrainerClass.__name__,
             "AUPRC": round(auprc, 3),
             "Brier Score": round(brier, 3),
-            "F1-score": round(f1, 3),
         }
 
         metrics.append(eval_metrics)
