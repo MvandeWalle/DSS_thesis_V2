@@ -79,6 +79,7 @@ def main():
     test_output = []
     shap_df = None
 
+    # Loop over binary vs numeric target types
     for target, bi_col in zip(["binary_wf", "numeric_wf"], [None, "binary_wf"]):
         models = [
             DummyTrainer,
@@ -90,6 +91,7 @@ def main():
         if (target != "binary_wf") and (LogisticRegressionTrainer in models):
             models.remove(LogisticRegressionTrainer)
 
+        # Loop over models
         for TrainerClass in models:
             model_trainer = TrainerClass(
                 data=current_dataset,
@@ -117,16 +119,19 @@ def main():
 
             # Predict on the test set
             output_per_model = model_trainer.train_final(testing_data=test_data)
-            output_per_model['date'] = test_data['date'].values
+            output_per_model["date"] = test_data["date"].values
             evaluation_per_model = evaluate_final(
                 output_per_model, target_type=target, model_name=model_name
             )
-            
-            output_name = f"data/output/test_predictions/test_pred_{model_name}_{target}.csv"
+
+            output_name = (
+                f"data/output/test_predictions/test_pred_{model_name}_{target}.csv"
+            )
             output_per_model.to_csv(output_name, index=False)
 
             test_output.append(evaluation_per_model)
 
+            # Create SHAP output for feature importance
             if TrainerClass.__name__ != "DummyTrainer":
                 shaped = SHAPAnalyser(
                     model=model_trainer.model,
@@ -136,7 +141,9 @@ def main():
                 )
 
                 # Save raw SHAP values for plotting later
-                shap_values_path = f"data/output/shap_values_{model_name}_{target_name}.csv"
+                shap_values_path = (
+                    f"data/output/shap_values_{model_name}_{target_name}.csv"
+                )
                 shap_output = shaped.summarise_shap(
                     decimal=4,
                     save_raw_shap=True,
@@ -150,12 +157,8 @@ def main():
                     shap_df = shap_output
                 else:
                     shap_df = shap_df.merge(
-                        shap_output[["feature", col_name]],
-                        on="feature",
-                        how="left"
+                        shap_output[["feature", col_name]], on="feature", how="left"
                     )
-                
-
 
     test_output = pd.DataFrame(test_output)
 
@@ -174,8 +177,6 @@ def main():
     validation_output.to_csv("data/output/validation_output.csv", index=False)
     test_output.to_csv("data/output/test_output.csv", index=False)
     shap_df.to_csv("data/output/shap_data.csv", index=False)
-
-    # Log results
 
 
 if __name__ == "__main__":
